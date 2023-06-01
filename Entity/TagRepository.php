@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace MauticPlugin\MauticTagManagerBundle\Entity;
 
+use Doctrine\DBAL\Connection;
+use Doctrine\ORM\NoResultException;
+use Mautic\LeadBundle\Entity\Tag;
 use Mautic\LeadBundle\Entity\TagRepository as BaseTagRepository;
 
 class TagRepository extends BaseTagRepository
@@ -54,8 +57,9 @@ class TagRepository extends BaseTagRepository
         }
 
         $q->where(
-            $q->expr()->in('ltx.tag_id', $tagIds)
+            $q->expr()->in('ltx.tag_id', ':tagIds')
         )
+            ->setParameter('tagIds', $tagIds, Connection::PARAM_INT_ARRAY)
             ->groupBy('ltx.tag_id');
 
         $result = $q->executeQuery()->fetchAllAssociative();
