@@ -5,18 +5,31 @@
 
 {% set customButtons = {} %}
 
+{% block indexButton %}
+{{- include('@MauticCore/Helper/page_actions.html.twig',
+    {
+        item            : tag,
+        templateButtons : {
+            close : security.isGranted('tagManager:tagManager:edit'),
+        },
+        routeBase       : 'tagmanager',
+        targetLabel     : 'mautic.lead.tags'|trans
+    }
+) -}}
+{% endblock %}
+
 {% block actions %}
     {{- include('@MauticCore/Helper/page_actions.html.twig', {
-        item : tag,
-        nameGetter: 'getTag',
-        templateButtons: {
-            edit: security.isGranted('tagManager:tagManager:edit'),
-            delete:  security.isGranted('tagManager:tagManager:delete'),
-            close:  security.isGranted('tagManager:tagManager:edit'),
+        item            : tag,
+        nameGetter      : 'getTag',
+        templateButtons : {
+            edit   : security.isGranted('tagManager:tagManager:edit'),
+            delete : security.isGranted('tagManager:tagManager:delete'),
         },
-        routeBase: 'tagmanager'
+        routeBase       : 'tagmanager'
     }) -}}
 {% endblock %}
+
 
 {% block content %}
     <!-- start: box layout -->
