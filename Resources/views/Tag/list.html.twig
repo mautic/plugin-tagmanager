@@ -17,7 +17,7 @@
         {{- include('@MauticCore/Helper/list_toolbar.html.twig', {
             'searchValue': searchValue,
             'action': currentRoute,
-            'list_actions': include('@MauticCore/Helper/toolbar_page_actions.html.twig', {
+            'page_actions': include('@MauticCore/Helper/toolbar_page_actions.html.twig', {
                 'templateButtons': {
                     'new': security.isGranted('tagManager:tagManager:create')
                 },
