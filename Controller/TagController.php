@@ -115,7 +115,7 @@ class TagController extends FormController
         // set what page currently on so that we can return here after form submission/cancellation
         $session->set('mautic.tagmanager.page', $page);
 
-        $tagIds    = array_keys(iterator_to_array($items->getIterator(), true));
+        $tagIds    = array_map(fn (Tag $tag) => $tag->getId(), $items);
         $tagsCount = (!empty($tagIds)) ? $model->getRepository()->countByLeads($tagIds) : [];
 
         $parameters = [
@@ -557,7 +557,7 @@ class TagController extends FormController
     /**
      * Deletes a group of entities.
      */
-    public function batchDeleteAction(Request $request): Response
+    public function batchDeleteAction(Request $request, TagModel $model): Response
     {
         $page      = $request->getSession()->get('mautic.tagmanager.page', 1);
         $returnUrl = $this->generateUrl('mautic_tagmanager_index', ['page' => $page]);
@@ -574,8 +574,6 @@ class TagController extends FormController
         ];
 
         if ('POST' === $request->getMethod()) {
-            /** @var ListModel $model */
-            $model           = $this->getModel('lead.tag');
             $ids             = json_decode($request->query->get('ids', '{}'));
             $deleteIds       = [];
 
