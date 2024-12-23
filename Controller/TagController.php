@@ -4,6 +4,7 @@ namespace MauticPlugin\MauticTagManagerBundle\Controller;
 
 use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
 use Doctrine\ORM\EntityNotFoundException;
+use Doctrine\ORM\Tools\Pagination\Paginator;
 use Mautic\CoreBundle\Controller\FormController;
 use Mautic\LeadBundle\Entity\Tag;
 use Mautic\LeadBundle\Model\TagModel;
@@ -84,7 +85,9 @@ class TagController extends FormController
                 'filter'     => $filter,
                 'orderBy'    => $orderBy,
                 'orderByDir' => $orderByDir,
-            ]);
+            ]
+        );
+        \assert($items instanceof Paginator);
 
         $count = count($items);
 
@@ -115,7 +118,7 @@ class TagController extends FormController
         // set what page currently on so that we can return here after form submission/cancellation
         $session->set('mautic.tagmanager.page', $page);
 
-        $tagIds    = array_map(fn (Tag $tag) => $tag->getId(), $items);
+        $tagIds    = array_map(fn (Tag $tag) => $tag->getId(), iterator_to_array($items->getIterator()));
         $tagsCount = (!empty($tagIds)) ? $model->getRepository()->countByLeads($tagIds) : [];
 
         $parameters = [
