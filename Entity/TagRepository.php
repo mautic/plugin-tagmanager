@@ -1,9 +1,9 @@
 <?php
 
+declare(strict_types=1);
+
 namespace MauticPlugin\MauticTagManagerBundle\Entity;
 
-use Doctrine\DBAL\Query\QueryBuilder as DbalQueryBuilder;
-use Doctrine\ORM\QueryBuilder;
 use Mautic\LeadBundle\Entity\TagRepository as BaseTagRepository;
 
 class TagRepository extends BaseTagRepository
