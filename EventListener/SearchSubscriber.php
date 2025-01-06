@@ -19,7 +19,7 @@ class SearchSubscriber implements EventSubscriberInterface
     public function __construct(
         private TagModel $model,
         private CorePermissions $security,
-        private Environment $twig
+        private Environment $twig,
     ) {
     }
 
@@ -48,7 +48,6 @@ class SearchSubscriber implements EventSubscriberInterface
             'ignore_paginator' => true,
             'with_total_count' => true,
         ]);
-
 
         $this->addGlobalSearchResults(
             $this->twig,
