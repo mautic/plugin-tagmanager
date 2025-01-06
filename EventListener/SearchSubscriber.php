@@ -16,7 +16,6 @@ class SearchSubscriber implements EventSubscriberInterface
 {
     use GlobalSearchTrait;
 
-
     public function __construct(
         private TagModel $model,
         private CorePermissions $security,
