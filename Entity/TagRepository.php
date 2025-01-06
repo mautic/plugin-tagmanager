@@ -2,6 +2,8 @@
 
 namespace MauticPlugin\MauticTagManagerBundle\Entity;
 
+use Doctrine\DBAL\Query\QueryBuilder as DbalQueryBuilder;
+use Doctrine\ORM\QueryBuilder;
 use Mautic\LeadBundle\Entity\TagRepository as BaseTagRepository;
 
 class TagRepository extends BaseTagRepository
@@ -73,9 +75,12 @@ class TagRepository extends BaseTagRepository
         return ($returnArray) ? $return : $return[$tagIds[0]];
     }
 
-    protected function addCatchAllWhereClause($q, $filter): array
+    /**
+     * @return array<mixed>
+     */
+    protected function addCatchAllWhereClause($qb, $filter): array
     {
-        return $this->addStandardCatchAllWhereClause($q, $filter, [
+        return $this->addStandardCatchAllWhereClause($qb, $filter, [
             'lt.tag',
         ]);
     }
