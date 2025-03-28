@@ -113,7 +113,7 @@
                                     {% set description = item.getDescription() %}
                                     {% if description %}
                                         {{ include('@MauticCore/Helper/description--inline.html.twig', {
-                                            'description': description|purify
+                                            'description': description
                                         }) }}
                                     {% endif %}
                                 </td>
