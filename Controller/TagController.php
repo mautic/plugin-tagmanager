@@ -486,6 +486,150 @@ class TagController extends FormController
     }
 
     /**
+     * Merge two tags together.
+     */
+    public function mergeAction(Request $request, $objectId)
+    {
+        $permissions = $this->security->isGranted(
+            [
+                'tagManager:tagManager:view',
+                'tagManager:tagManager:edit',
+                'tagManager:tagManager:delete',
+            ],
+            'RETURN_ARRAY'
+        );
+
+        if (!$permissions['tagManager:tagManager:view']) {
+            return $this->accessDenied();
+        }
+
+        /** @var TagModel $model */
+        $model        = $this->getModel('lead.tag');
+        $secondaryTag = $model->getEntity($objectId);
+        $page         = $request->getSession()->get('mautic.tagmanager.page', 1);
+
+        $returnUrl = $this->generateUrl('mautic_tagmanager_index', ['page' => $page]);
+
+        $postActionVars = [
+            'returnUrl'       => $returnUrl,
+            'viewParameters'  => ['page' => $page],
+            'contentTemplate' => 'MauticPlugin\\MauticTagManagerBundle\\Controller\\TagController::indexAction',
+            'passthroughVars' => [
+                'activeLink'    => '#mautic_tagmanager_index',
+                'mauticContent' => 'tagmanager',
+            ],
+        ];
+
+        if (null === $secondaryTag) {
+            return $this->postActionRedirect(
+                array_merge(
+                    $postActionVars,
+                    [
+                        'flashes' => [
+                            [
+                                'type'    => 'error',
+                                'msg'     => 'mautic.tagmanager.tag.error.notfound',
+                                'msgVars' => ['%id%' => $objectId],
+                            ],
+                        ],
+                    ]
+                )
+            );
+        }
+
+        $action = $this->generateUrl('mautic_tagmanager_action', ['objectAction' => 'merge', 'objectId' => $secondaryTag->getId()]);
+
+        $form = $this->formFactory->create(
+            \MauticPlugin\MauticTagManagerBundle\Form\Type\TagMergeType::class,
+            [],
+            [
+                'action' => $action,
+            ]
+        );
+
+        if ('POST' === $request->getMethod()) {
+            $valid = true;
+            if (!$this->isFormCancelled($form)) {
+                if ($valid = $this->isFormValid($form)) {
+                    $data       = $form->getData();
+                    /** @var Tag|null $primaryTag */
+                    $primaryTag = $data['tag_to_merge'];
+
+                    if (null === $primaryTag) {
+                        return $this->postActionRedirect(
+                            array_merge(
+                                $postActionVars,
+                                [
+                                    'flashes' => [
+                                        [
+                                            'type'    => 'error',
+                                            'msg'     => 'mautic.tagmanager.tag.error.notfound',
+                                            'msgVars' => ['%id%' => $primaryTag->getId()],
+                                        ],
+                                    ],
+                                ]
+                            )
+                        );
+                    }
+
+                    if (!$permissions['tagManager:tagManager:edit'] || !$permissions['tagManager:tagManager:delete']) {
+                        return $this->accessDenied();
+                    }
+
+                    $model->tagMerge($primaryTag, $secondaryTag);
+                }
+
+                if ($valid) {
+                    $viewParameters = [
+                        'objectId'     => $primaryTag->getId(),
+                        'objectAction' => 'view',
+                    ];
+                }
+            } else {
+                $viewParameters = [
+                    'objectId'     => $secondaryTag->getId(),
+                    'objectAction' => 'view',
+                ];
+            }
+
+            return $this->postActionRedirect(
+                [
+                    'returnUrl'       => $this->generateUrl('mautic_tagmanager_action', $viewParameters),
+                    'viewParameters'  => $viewParameters,
+                    'contentTemplate' => 'MauticPlugin\\MauticTagManagerBundle\\Controller\\TagController::viewAction',
+                    'passthroughVars' => [
+                        'closeModal' => 1,
+                    ],
+                ]
+            );
+        }
+
+        $tmpl = $request->get('tmpl', 'index');
+
+        return $this->delegateView(
+            [
+                'viewParameters' => [
+                    'tmpl'         => $tmpl,
+                    'action'       => $action,
+                    'form'         => $form->createView(),
+                    'currentRoute' => $this->generateUrl(
+                        'mautic_tagmanager_action',
+                        [
+                            'objectAction' => 'merge',
+                            'objectId'     => $secondaryTag->getId(),
+                        ]
+                    ),
+                ],
+                'contentTemplate' => '@MauticTagManager/Tag/merge.html.twig',
+                'passthroughVars' => [
+                    'route'  => false,
+                    'target' => ('update' == $tmpl) ? '.tag-merge-options' : null,
+                ],
+            ]
+        );
+    }
+
+    /**
      * Deletes a tags.
      *
      * @return Response
