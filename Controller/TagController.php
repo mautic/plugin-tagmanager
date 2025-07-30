@@ -8,7 +8,6 @@ use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
 use Doctrine\ORM\EntityNotFoundException;
 use Doctrine\ORM\Tools\Pagination\Paginator;
 use Mautic\CoreBundle\Controller\FormController;
-use Mautic\CoreBundle\Helper\InputHelper;
 use Mautic\LeadBundle\Entity\Tag;
 use Mautic\LeadBundle\Model\TagModel;
 use MauticPlugin\MauticTagManagerBundle\Entity\TagDependencies;
@@ -23,8 +22,8 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 
 class TagController extends FormController
 {
-    private const PERMISSION_VIEW = 'tagManager:tagManager:view';
-    private const PERMISSION_EDIT = 'tagManager:tagManager:edit';
+    private const PERMISSION_VIEW   = 'tagManager:tagManager:view';
+    private const PERMISSION_EDIT   = 'tagManager:tagManager:edit';
     private const PERMISSION_DELETE = 'tagManager:tagManager:delete';
     private const PERMISSION_CREATE = 'tagManager:tagManager:create';
 
@@ -40,7 +39,7 @@ class TagController extends FormController
         // Use overwritten tag model so overwritten repository can be fetched,
         // we need it to define table alias so we can define sort order.
         $model = $this->getModel('tagmanager.tag');
-        \assert($model instanceof \MauticPlugin\MauticTagManagerBundle\Model\TagModel);
+        \assert($model instanceof TagManagerModel);
         $session = $request->getSession();
 
         // set some permissions
@@ -167,7 +166,7 @@ class TagController extends FormController
         // retrieve the entity
         $tag   = new \MauticPlugin\MauticTagManagerBundle\Entity\Tag();
         $model = $this->getModel('tagmanager.tag');
-        \assert($model instanceof \MauticPlugin\MauticTagManagerBundle\Model\TagModel);
+        \assert($model instanceof TagManagerModel);
         // set the page we came from
         $page = $request->getSession()->get('mautic.tagmanager.page', 1);
         // set the return URL for post actions
@@ -500,23 +499,23 @@ class TagController extends FormController
     public function mergeAction(Request $request, int $objectId): Response
     {
         $permissions = $this->getMergePermissions();
-        
+
         if (!$permissions[self::PERMISSION_VIEW]) {
             return $this->accessDenied();
         }
 
         /** @var TagModel $model */
-        $model = $this->getModel('lead.tag');
+        $model        = $this->getModel('lead.tag');
         $secondaryTag = $model->getEntity($objectId);
-        
+
         if (null === $secondaryTag) {
             return $this->handleTagNotFound($objectId);
         }
 
         $postActionVars = $this->getMergePostActionVars($request);
-        $action = $this->generateUrl('mautic_tagmanager_action', [
+        $action         = $this->generateUrl('mautic_tagmanager_action', [
             'objectAction' => 'merge',
-            'objectId' => $secondaryTag->getId()
+            'objectId'     => $secondaryTag->getId(),
         ]);
 
         $form = $this->createMergeForm($action, $secondaryTag->getId());
@@ -543,15 +542,15 @@ class TagController extends FormController
     private function handleTagNotFound(int $objectId): Response
     {
         $postActionVars = $this->getMergePostActionVars($this->request);
-        
+
         return $this->postActionRedirect(
             array_merge(
                 $postActionVars,
                 [
                     'flashes' => [
                         [
-                            'type' => 'error',
-                            'msg' => 'mautic.tagmanager.tag.error.notfound',
+                            'type'    => 'error',
+                            'msg'     => 'mautic.tagmanager.tag.error.notfound',
                             'msgVars' => ['%id%' => $objectId],
                         ],
                     ],
@@ -562,33 +561,33 @@ class TagController extends FormController
 
     private function getMergePostActionVars(Request $request): array
     {
-        $page = $request->getSession()->get('mautic.tagmanager.page', 1);
+        $page      = $request->getSession()->get('mautic.tagmanager.page', 1);
         $returnUrl = $this->generateUrl('mautic_tagmanager_index', ['page' => $page]);
 
         return [
-            'returnUrl' => $returnUrl,
-            'viewParameters' => ['page' => $page],
+            'returnUrl'       => $returnUrl,
+            'viewParameters'  => ['page' => $page],
             'contentTemplate' => 'MauticPlugin\\MauticTagManagerBundle\\Controller\\TagController::indexAction',
             'passthroughVars' => [
-                'activeLink' => '#mautic_tagmanager_index',
+                'activeLink'    => '#mautic_tagmanager_index',
                 'mauticContent' => 'tagmanager',
             ],
         ];
     }
 
-    private function createMergeForm(string $action, int $excludeId): \Symfony\Component\Form\FormInterface
+    private function createMergeForm(string $action, int $excludeId): FormInterface
     {
         return $this->formFactory->create(
             \MauticPlugin\MauticTagManagerBundle\Form\Type\TagMergeType::class,
             [],
             [
-                'action' => $action,
+                'action'      => $action,
                 'exclude_ids' => [$excludeId],
             ]
         );
     }
 
-    private function handleMergePostRequest(\Symfony\Component\Form\FormInterface $form, Tag $secondaryTag, array $permissions, array $postActionVars): Response
+    private function handleMergePostRequest(FormInterface $form, Tag $secondaryTag, array $permissions, array $postActionVars): Response
     {
         if ($this->isFormCancelled($form)) {
             return $this->handleFormCancellation($secondaryTag);
@@ -616,13 +615,13 @@ class TagController extends FormController
     private function handleFormCancellation(Tag $secondaryTag): Response
     {
         $viewParameters = [
-            'objectId' => $secondaryTag->getId(),
+            'objectId'     => $secondaryTag->getId(),
             'objectAction' => 'view',
         ];
 
         return $this->postActionRedirect([
-            'returnUrl' => $this->generateUrl('mautic_tagmanager_action', $viewParameters),
-            'viewParameters' => $viewParameters,
+            'returnUrl'       => $this->generateUrl('mautic_tagmanager_action', $viewParameters),
+            'viewParameters'  => $viewParameters,
             'contentTemplate' => 'MauticPlugin\\MauticTagManagerBundle\\Controller\\TagController::viewAction',
             'passthroughVars' => [
                 'closeModal' => 1,
@@ -639,8 +638,8 @@ class TagController extends FormController
                 [
                     'flashes' => [
                         [
-                            'type' => 'error',
-                            'msg' => 'mautic.tagmanager.tag.error.notfound',
+                            'type'    => 'error',
+                            'msg'     => 'mautic.tagmanager.tag.error.notfound',
                             'msgVars' => ['%id%' => 'unknown'],
                         ],
                     ],
@@ -656,24 +655,24 @@ class TagController extends FormController
         $model->tagMerge($primaryTag, $secondaryTag);
 
         $viewParameters = [
-            'objectId' => $primaryTag->getId(),
+            'objectId'     => $primaryTag->getId(),
             'objectAction' => 'view',
         ];
 
         $flashes = [
             [
-                'type' => 'notice',
-                'msg' => 'mautic.tagmanager.tag.notice.merge_success',
+                'type'    => 'notice',
+                'msg'     => 'mautic.tagmanager.tag.notice.merge_success',
                 'msgVars' => [
-                    '%primary%' => $primaryTag->getTag(),
+                    '%primary%'   => $primaryTag->getTag(),
                     '%secondary%' => $secondaryTag->getTag(),
                 ],
             ],
         ];
 
         return $this->postActionRedirect([
-            'returnUrl' => $this->generateUrl('mautic_tagmanager_action', $viewParameters),
-            'viewParameters' => $viewParameters,
+            'returnUrl'       => $this->generateUrl('mautic_tagmanager_action', $viewParameters),
+            'viewParameters'  => $viewParameters,
             'contentTemplate' => 'MauticPlugin\\MauticTagManagerBundle\\Controller\\TagController::viewAction',
             'passthroughVars' => [
                 'closeModal' => 1,
@@ -682,26 +681,26 @@ class TagController extends FormController
         ]);
     }
 
-    private function renderMergeForm(Request $request, string $action, \Symfony\Component\Form\FormInterface $form, Tag $secondaryTag): Response
+    private function renderMergeForm(Request $request, string $action, FormInterface $form, Tag $secondaryTag): Response
     {
         $tmpl = $request->get('tmpl', 'index');
 
         return $this->delegateView([
             'viewParameters' => [
-                'tmpl' => $tmpl,
-                'action' => $action,
-                'form' => $form->createView(),
+                'tmpl'         => $tmpl,
+                'action'       => $action,
+                'form'         => $form->createView(),
                 'currentRoute' => $this->generateUrl(
                     'mautic_tagmanager_action',
                     [
                         'objectAction' => 'merge',
-                        'objectId' => $secondaryTag->getId(),
+                        'objectId'     => $secondaryTag->getId(),
                     ]
                 ),
             ],
             'contentTemplate' => '@MauticTagManager/Tag/merge.html.twig',
             'passthroughVars' => [
-                'route' => false,
+                'route'  => false,
                 'target' => ('update' == $tmpl) ? '.tag-merge-options' : null,
             ],
         ]);
@@ -734,7 +733,7 @@ class TagController extends FormController
             /** @var TagModel $model */
             $model         = $this->getModel('lead.tag');
             $overrideModel = $this->getModel('tagmanager.tag');
-            \assert($overrideModel instanceof \MauticPlugin\MauticTagManagerBundle\Model\TagModel);
+            \assert($overrideModel instanceof TagManagerModel);
             $tag = $model->getEntity($objectId);
 
             if (null === $tag) {

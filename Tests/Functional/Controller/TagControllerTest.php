@@ -7,14 +7,11 @@ namespace MauticPlugin\MauticTagManagerBundle\Tests\Functional\Controller;
 use Mautic\CoreBundle\Test\MauticMysqlTestCase;
 use Mautic\LeadBundle\Entity\Tag;
 use Mautic\LeadBundle\Entity\TagRepository;
-use Mautic\LeadBundle\Model\TagModel;
 use Mautic\UserBundle\Entity\Role;
 use Mautic\UserBundle\Entity\User;
 use PHPUnit\Framework\Assert;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\PasswordHasherInterface;
-use MauticPlugin\MauticTagManagerBundle\Entity\TagDependencies;
-use MauticPlugin\MauticTagManagerBundle\Model\TagModel as TagManagerModel;
 
 class TagControllerTest extends MauticMysqlTestCase
 {
@@ -28,7 +25,7 @@ class TagControllerTest extends MauticMysqlTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $tagModel = static::getContainer()->get('mautic.lead.model.tag');
+        $tagModel            = static::getContainer()->get('mautic.lead.model.tag');
         $this->tagRepository = $tagModel->getRepository();
 
         $tags = ['Tag 1', 'Tag 2', 'Tag 3', 'Tag 4', 'Tag 5'];
@@ -197,7 +194,7 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeAction(): void
     {
-        $tags = $this->tagRepository->findAll();
+        $tags    = $this->tagRepository->findAll();
         $mainTag = $tags[0];
 
         $this->client->request('GET', '/s/tags/merge/'.$mainTag->getId());
@@ -210,14 +207,14 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeActionExcludesCurrentTag(): void
     {
-        $tags = $this->tagRepository->findAll();
+        $tags       = $this->tagRepository->findAll();
         $currentTag = $tags[0];
 
-        $crawler = $this->client->request('GET', '/s/tags/merge/'.$currentTag->getId());
+        $crawler        = $this->client->request('GET', '/s/tags/merge/'.$currentTag->getId());
         $clientResponse = $this->client->getResponse();
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
 
-        $form = $crawler->selectButton('Merge')->form();
+        $form  = $crawler->selectButton('Merge')->form();
         $field = $form['tag_merge[tag_to_merge]'];
 
         if ($field instanceof \Symfony\Component\DomCrawler\Field\ChoiceFormField) {
@@ -235,13 +232,13 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeActionPost(): void
     {
-        $tags = $this->tagRepository->findAll();
+        $tags    = $this->tagRepository->findAll();
         $mainTag = $tags[0];
-        $secTag = $tags[1];
+        $secTag  = $tags[1];
 
         $crawler = $this->client->request('GET', '/s/tags/merge/'.$secTag->getId());
-        $form = $crawler->selectButton('Merge')->form();
-        $field = $form['tag_merge[tag_to_merge]'];
+        $form    = $crawler->selectButton('Merge')->form();
+        $field   = $form['tag_merge[tag_to_merge]'];
 
         if ($field instanceof \Symfony\Component\DomCrawler\Field\ChoiceFormField) {
             $field->select((string) $mainTag->getId());
@@ -254,7 +251,7 @@ class TagControllerTest extends MauticMysqlTestCase
 
         $this->em->clear();
 
-        $remainingTags = $this->tagRepository->findAll();
+        $remainingTags   = $this->tagRepository->findAll();
         $remainingTagIds = array_map(fn ($tag) => $tag->getId(), $remainingTags);
 
         $this->assertNotContains($secTag->getId(), $remainingTagIds, 'Secondary tag should be deleted');
