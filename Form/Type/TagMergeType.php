@@ -26,12 +26,12 @@ class TagMergeType extends AbstractType
                 'required'        => true,
                 'query_builder'   => function ($er) use ($options) {
                     $qb = $er->createQueryBuilder('t')->orderBy('t.tag', Order::Ascending->value);
-                    
+
                     if (!empty($options['exclude_ids'])) {
                         $qb->andWhere('t.id NOT IN (:exclude_ids)')
                            ->setParameter('exclude_ids', $options['exclude_ids']);
                     }
-                    
+
                     return $qb;
                 },
                 'constraints'     => [

@@ -585,7 +585,7 @@ class TagController extends FormController
                         'objectId'     => $primaryTag->getId(),
                         'objectAction' => 'view',
                     ];
-                    
+
                     $flashes = [
                         [
                             'type'    => 'notice',

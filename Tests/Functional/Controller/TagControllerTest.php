@@ -196,7 +196,7 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeAction(): void
     {
-        $tags = $this->tagRepository->findAll();
+        $tags    = $this->tagRepository->findAll();
         $mainTag = $tags[0];
 
         $this->client->request('GET', '/s/tags/merge/'.$mainTag->getId());
@@ -209,16 +209,16 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeActionExcludesCurrentTag(): void
     {
-        $tags = $this->tagRepository->findAll();
+        $tags       = $this->tagRepository->findAll();
         $currentTag = $tags[0];
 
-        $crawler = $this->client->request('GET', '/s/tags/merge/'.$currentTag->getId());
+        $crawler        = $this->client->request('GET', '/s/tags/merge/'.$currentTag->getId());
         $clientResponse = $this->client->getResponse();
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
 
-        $form = $crawler->selectButton('Merge')->form();
+        $form    = $crawler->selectButton('Merge')->form();
         $options = $form['tag_merge[tag_to_merge]']->availableOptionValues();
-        
+
         $this->assertNotContains((string) $currentTag->getId(), $options, 'Current tag should be excluded from merge options');
     }
 
@@ -231,29 +231,27 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeActionPost(): void
     {
-        $tags = $this->tagRepository->findAll();
+        $tags    = $this->tagRepository->findAll();
         $mainTag = $tags[0];
-        $secTag = $tags[1];
+        $secTag  = $tags[1];
 
         $crawler = $this->client->request('GET', '/s/tags/merge/'.$secTag->getId());
-        $form = $crawler->selectButton('Merge')->form();
+        $form    = $crawler->selectButton('Merge')->form();
         $form['tag_merge[tag_to_merge]']->select((string) $mainTag->getId());
 
         $this->client->submit($form);
         $clientResponse = $this->client->getResponse();
 
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
-        
+
         $this->em->clear();
-        
-        $remainingTags = $this->tagRepository->findAll();
-        $remainingTagIds = array_map(fn($tag) => $tag->getId(), $remainingTags);
-        
+
+        $remainingTags   = $this->tagRepository->findAll();
+        $remainingTagIds = array_map(fn ($tag) => $tag->getId(), $remainingTags);
+
         $this->assertNotContains($secTag->getId(), $remainingTagIds, 'Secondary tag should be deleted');
         $this->assertContains($mainTag->getId(), $remainingTagIds, 'Main tag should still exist');
     }
-
-
 
     private function createAndLoginUser(): User
     {
