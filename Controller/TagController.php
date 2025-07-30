@@ -584,6 +584,17 @@ class TagController extends FormController
                         'objectId'     => $primaryTag->getId(),
                         'objectAction' => 'view',
                     ];
+                    
+                    $flashes = [
+                        [
+                            'type'    => 'notice',
+                            'msg'     => 'mautic.tagmanager.tag.merge.success',
+                            'msgVars' => [
+                                '%primary%'   => $primaryTag->getTag(),
+                                '%secondary%' => $secondaryTag->getTag(),
+                            ],
+                        ],
+                    ];
                 }
             } else {
                 $viewParameters = [
@@ -600,6 +611,7 @@ class TagController extends FormController
                     'passthroughVars' => [
                         'closeModal' => 1,
                     ],
+                    'flashes'         => $flashes ?? [],
                 ]
             );
         }

@@ -238,6 +238,8 @@ class TagControllerTest extends MauticMysqlTestCase
         $this->assertContains($mainTag->getId(), $remainingTagIds, 'Main tag should still exist');
     }
 
+
+
     private function createAndLoginUser(): User
     {
         // Create non-admin role
