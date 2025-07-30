@@ -10,7 +10,7 @@ use Doctrine\ORM\Tools\Pagination\Paginator;
 use Mautic\CoreBundle\Controller\FormController;
 use Mautic\LeadBundle\Entity\Tag;
 use Mautic\LeadBundle\Model\TagModel;
-use MauticPlugin\MauticTagManagerBundle\Entity\TagDependencies;
+use MauticPlugin\MauticTagManagerBundle\Stats\TagDependencies;
 use MauticPlugin\MauticTagManagerBundle\Model\TagModel as TagManagerModel;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\SubmitButton;
@@ -292,7 +292,13 @@ class TagController extends FormController
      *
      * @return Response
      */
-    private function createTagModifyResponse(Request $request, Tag $tag, TagDependencies $tagDependencies, array $postActionVars, $action, $ignorePost)
+    /**
+     * @param array<string, mixed> $postActionVars
+     * @param string $action
+     * @param bool $ignorePost
+     * @return Response
+     */
+    private function createTagModifyResponse(Request $request, Tag $tag, TagDependencies $tagDependencies, array $postActionVars, string $action, bool $ignorePost): Response
     {
         /** @var TagModel $tagModel */
         $tagModel = $this->getModel('tagmanager.tag');
@@ -413,7 +419,11 @@ class TagController extends FormController
      *
      * @param int|null $objectId
      */
-    private function getPostActionVars(Request $request, $objectId = null): array
+    /**
+     * @param int|null $objectId
+     * @return array<string, mixed>
+     */
+    private function getPostActionVars(Request $request, ?int $objectId = null): array
     {
         // set the return URL
         if ($objectId) {
@@ -527,6 +537,9 @@ class TagController extends FormController
         return $this->renderMergeForm($request, $action, $form, $secondaryTag);
     }
 
+    /**
+     * @return array<string, bool>
+     */
     private function getMergePermissions(): array
     {
         return $this->security->isGranted(
@@ -541,7 +554,7 @@ class TagController extends FormController
 
     private function handleTagNotFound(int $objectId): Response
     {
-        $postActionVars = $this->getMergePostActionVars($this->request);
+        $postActionVars = $this->getMergePostActionVars($this->getCurrentRequest());
 
         return $this->postActionRedirect(
             array_merge(
@@ -559,6 +572,9 @@ class TagController extends FormController
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private function getMergePostActionVars(Request $request): array
     {
         $page      = $request->getSession()->get('mautic.tagmanager.page', 1);
@@ -587,6 +603,10 @@ class TagController extends FormController
         );
     }
 
+    /**
+     * @param array<string, bool> $permissions
+     * @param array<string, mixed> $postActionVars
+     */
     private function handleMergePostRequest(FormInterface $form, Tag $secondaryTag, array $permissions, array $postActionVars): Response
     {
         if ($this->isFormCancelled($form)) {
@@ -630,6 +650,9 @@ class TagController extends FormController
         ]);
     }
 
+    /**
+     * @param array<string, mixed> $postActionVars
+     */
     private function handlePrimaryTagNotFound(array $postActionVars): Response
     {
         return $this->postActionRedirect(
