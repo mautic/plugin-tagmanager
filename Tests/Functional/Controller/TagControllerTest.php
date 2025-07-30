@@ -194,6 +194,50 @@ class TagControllerTest extends MauticMysqlTestCase
         $this->assertResponseStatusCodeSame(403, (string) $this->client->getResponse()->getStatusCode());
     }
 
+    public function testMergeAction(): void
+    {
+        $tags = $this->tagRepository->findAll();
+        $mainTag = $tags[0];
+
+        $this->client->request('GET', '/s/tags/merge/'.$mainTag->getId());
+        $clientResponse = $this->client->getResponse();
+        $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
+
+        $crawler = $this->client->getCrawler();
+        $this->assertStringContainsString('Merge', $crawler->text());
+    }
+
+    public function testMergeActionWithInvalidTag(): void
+    {
+        $this->client->request('GET', '/s/tags/merge/999999');
+        $clientResponse = $this->client->getResponse();
+        $this->assertTrue($clientResponse->isOk(), 'Return code must be 200 (redirect with error).');
+    }
+
+    public function testMergeActionPost(): void
+    {
+        $tags = $this->tagRepository->findAll();
+        $mainTag = $tags[0];
+        $secTag = $tags[1];
+
+        $crawler = $this->client->request('GET', '/s/tags/merge/'.$secTag->getId());
+        $form = $crawler->selectButton('Merge')->form();
+        $form['tag_merge[tag_to_merge]']->select((string) $mainTag->getId());
+
+        $this->client->submit($form);
+        $clientResponse = $this->client->getResponse();
+
+        $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
+        
+        $this->em->clear();
+        
+        $remainingTags = $this->tagRepository->findAll();
+        $remainingTagIds = array_map(fn($tag) => $tag->getId(), $remainingTags);
+        
+        $this->assertNotContains($secTag->getId(), $remainingTagIds, 'Secondary tag should be deleted');
+        $this->assertContains($mainTag->getId(), $remainingTagIds, 'Main tag should still exist');
+    }
+
     private function createAndLoginUser(): User
     {
         // Create non-admin role
