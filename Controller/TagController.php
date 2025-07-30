@@ -488,7 +488,7 @@ class TagController extends FormController
     /**
      * Merge two tags together.
      */
-    public function mergeAction(Request $request, $objectId)
+    public function mergeAction(Request $request, int $objectId): \Symfony\Component\HttpFoundation\Response
     {
         $permissions = $this->security->isGranted(
             [
@@ -565,7 +565,7 @@ class TagController extends FormController
                                         [
                                             'type'    => 'error',
                                             'msg'     => 'mautic.tagmanager.tag.error.notfound',
-                                            'msgVars' => ['%id%' => $primaryTag->getId()],
+                                            'msgVars' => ['%id%' => 'unknown'],
                                         ],
                                     ],
                                 ]
