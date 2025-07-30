@@ -1,14 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace MauticPlugin\MauticTagManagerBundle\Controller;
 
 use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
 use Doctrine\ORM\EntityNotFoundException;
 use Doctrine\ORM\Tools\Pagination\Paginator;
 use Mautic\CoreBundle\Controller\FormController;
+use Mautic\CoreBundle\Helper\InputHelper;
 use Mautic\LeadBundle\Entity\Tag;
 use Mautic\LeadBundle\Model\TagModel;
-use MauticPlugin\MauticTagManagerBundle\Stats\TagDependencies;
+use MauticPlugin\MauticTagManagerBundle\Entity\TagDependencies;
+use MauticPlugin\MauticTagManagerBundle\Model\TagModel as TagManagerModel;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\SubmitButton;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -19,6 +23,11 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 
 class TagController extends FormController
 {
+    private const PERMISSION_VIEW = 'tagManager:tagManager:view';
+    private const PERMISSION_EDIT = 'tagManager:tagManager:edit';
+    private const PERMISSION_DELETE = 'tagManager:tagManager:delete';
+    private const MERGE_URL_PATH = '/s/tags/merge/';
+
     /**
      * Generate's default list view.
      *
@@ -490,156 +499,212 @@ class TagController extends FormController
      */
     public function mergeAction(Request $request, int $objectId): Response
     {
-        $permissions = $this->security->isGranted(
-            [
-                'tagManager:tagManager:view',
-                'tagManager:tagManager:edit',
-                'tagManager:tagManager:delete',
-            ],
-            'RETURN_ARRAY'
-        );
-
-        if (!$permissions['tagManager:tagManager:view']) {
+        $permissions = $this->getMergePermissions();
+        
+        if (!$permissions[self::PERMISSION_VIEW]) {
             return $this->accessDenied();
         }
 
         /** @var TagModel $model */
-        $model        = $this->getModel('lead.tag');
+        $model = $this->getModel('lead.tag');
         $secondaryTag = $model->getEntity($objectId);
-        $page         = $request->getSession()->get('mautic.tagmanager.page', 1);
+        
+        if (null === $secondaryTag) {
+            return $this->handleTagNotFound($objectId);
+        }
 
+        $postActionVars = $this->getMergePostActionVars($request);
+        $action = $this->generateUrl('mautic_tagmanager_action', [
+            'objectAction' => 'merge',
+            'objectId' => $secondaryTag->getId()
+        ]);
+
+        $form = $this->createMergeForm($action, $secondaryTag->getId());
+
+        if ('POST' === $request->getMethod()) {
+            return $this->handleMergePostRequest($request, $form, $secondaryTag, $permissions, $postActionVars);
+        }
+
+        return $this->renderMergeForm($request, $action, $form, $secondaryTag);
+    }
+
+    private function getMergePermissions(): array
+    {
+        return $this->security->isGranted(
+            [
+                self::PERMISSION_VIEW,
+                self::PERMISSION_EDIT,
+                self::PERMISSION_DELETE,
+            ],
+            'RETURN_ARRAY'
+        );
+    }
+
+    private function handleTagNotFound(int $objectId): Response
+    {
+        $postActionVars = $this->getMergePostActionVars($this->request);
+        
+        return $this->postActionRedirect(
+            array_merge(
+                $postActionVars,
+                [
+                    'flashes' => [
+                        [
+                            'type' => 'error',
+                            'msg' => 'mautic.tagmanager.tag.error.notfound',
+                            'msgVars' => ['%id%' => $objectId],
+                        ],
+                    ],
+                ]
+            )
+        );
+    }
+
+    private function getMergePostActionVars(Request $request): array
+    {
+        $page = $request->getSession()->get('mautic.tagmanager.page', 1);
         $returnUrl = $this->generateUrl('mautic_tagmanager_index', ['page' => $page]);
 
-        $postActionVars = [
-            'returnUrl'       => $returnUrl,
-            'viewParameters'  => ['page' => $page],
+        return [
+            'returnUrl' => $returnUrl,
+            'viewParameters' => ['page' => $page],
             'contentTemplate' => 'MauticPlugin\\MauticTagManagerBundle\\Controller\\TagController::indexAction',
             'passthroughVars' => [
-                'activeLink'    => '#mautic_tagmanager_index',
+                'activeLink' => '#mautic_tagmanager_index',
                 'mauticContent' => 'tagmanager',
             ],
         ];
+    }
 
-        if (null === $secondaryTag) {
-            return $this->postActionRedirect(
-                array_merge(
-                    $postActionVars,
-                    [
-                        'flashes' => [
-                            [
-                                'type'    => 'error',
-                                'msg'     => 'mautic.tagmanager.tag.error.notfound',
-                                'msgVars' => ['%id%' => $objectId],
-                            ],
-                        ],
-                    ]
-                )
-            );
-        }
-
-        $action = $this->generateUrl('mautic_tagmanager_action', ['objectAction' => 'merge', 'objectId' => $secondaryTag->getId()]);
-
-        $form = $this->formFactory->create(
+    private function createMergeForm(string $action, int $excludeId): \Symfony\Component\Form\FormInterface
+    {
+        return $this->formFactory->create(
             \MauticPlugin\MauticTagManagerBundle\Form\Type\TagMergeType::class,
             [],
             [
-                'action'      => $action,
-                'exclude_ids' => [$secondaryTag->getId()],
+                'action' => $action,
+                'exclude_ids' => [$excludeId],
             ]
         );
+    }
 
-        if ('POST' === $request->getMethod()) {
-            $valid = true;
-            if (!$this->isFormCancelled($form)) {
-                if ($valid = $this->isFormValid($form)) {
-                    $data       = $form->getData();
-                    /** @var Tag|null $primaryTag */
-                    $primaryTag = $data['tag_to_merge'];
-
-                    if (null === $primaryTag) {
-                        return $this->postActionRedirect(
-                            array_merge(
-                                $postActionVars,
-                                [
-                                    'flashes' => [
-                                        [
-                                            'type'    => 'error',
-                                            'msg'     => 'mautic.tagmanager.tag.error.notfound',
-                                            'msgVars' => ['%id%' => 'unknown'],
-                                        ],
-                                    ],
-                                ]
-                            )
-                        );
-                    }
-
-                    if (!$permissions['tagManager:tagManager:edit'] || !$permissions['tagManager:tagManager:delete']) {
-                        return $this->accessDenied();
-                    }
-
-                    $model->tagMerge($primaryTag, $secondaryTag);
-                }
-
-                if ($valid) {
-                    $viewParameters = [
-                        'objectId'     => $primaryTag->getId(),
-                        'objectAction' => 'view',
-                    ];
-
-                    $flashes = [
-                        [
-                            'type'    => 'notice',
-                            'msg'     => 'mautic.tagmanager.tag.notice.merge_success',
-                            'msgVars' => [
-                                '%primary%'   => $primaryTag->getTag(),
-                                '%secondary%' => $secondaryTag->getTag(),
-                            ],
-                        ],
-                    ];
-                }
-            } else {
-                $viewParameters = [
-                    'objectId'     => $secondaryTag->getId(),
-                    'objectAction' => 'view',
-                ];
-            }
-
-            return $this->postActionRedirect(
-                [
-                    'returnUrl'       => $this->generateUrl('mautic_tagmanager_action', $viewParameters),
-                    'viewParameters'  => $viewParameters,
-                    'contentTemplate' => 'MauticPlugin\\MauticTagManagerBundle\\Controller\\TagController::viewAction',
-                    'passthroughVars' => [
-                        'closeModal' => 1,
-                    ],
-                    'flashes'         => $flashes ?? [],
-                ]
-            );
+    private function handleMergePostRequest(Request $request, \Symfony\Component\Form\FormInterface $form, Tag $secondaryTag, array $permissions, array $postActionVars): Response
+    {
+        if ($this->isFormCancelled($form)) {
+            return $this->handleFormCancellation($secondaryTag);
         }
 
+        if (!$this->isFormValid($form)) {
+            return $this->handleFormCancellation($secondaryTag);
+        }
+
+        $data = $form->getData();
+        /** @var Tag|null $primaryTag */
+        $primaryTag = $data['tag_to_merge'];
+
+        if (null === $primaryTag) {
+            return $this->handlePrimaryTagNotFound($postActionVars);
+        }
+
+        if (!$permissions[self::PERMISSION_EDIT] || !$permissions[self::PERMISSION_DELETE]) {
+            return $this->accessDenied();
+        }
+
+        return $this->performTagMerge($primaryTag, $secondaryTag);
+    }
+
+    private function handleFormCancellation(Tag $secondaryTag): Response
+    {
+        $viewParameters = [
+            'objectId' => $secondaryTag->getId(),
+            'objectAction' => 'view',
+        ];
+
+        return $this->postActionRedirect([
+            'returnUrl' => $this->generateUrl('mautic_tagmanager_action', $viewParameters),
+            'viewParameters' => $viewParameters,
+            'contentTemplate' => 'MauticPlugin\\MauticTagManagerBundle\\Controller\\TagController::viewAction',
+            'passthroughVars' => [
+                'closeModal' => 1,
+            ],
+            'flashes' => [],
+        ]);
+    }
+
+    private function handlePrimaryTagNotFound(array $postActionVars): Response
+    {
+        return $this->postActionRedirect(
+            array_merge(
+                $postActionVars,
+                [
+                    'flashes' => [
+                        [
+                            'type' => 'error',
+                            'msg' => 'mautic.tagmanager.tag.error.notfound',
+                            'msgVars' => ['%id%' => 'unknown'],
+                        ],
+                    ],
+                ]
+            )
+        );
+    }
+
+    private function performTagMerge(Tag $primaryTag, Tag $secondaryTag): Response
+    {
+        /** @var TagModel $model */
+        $model = $this->getModel('lead.tag');
+        $model->tagMerge($primaryTag, $secondaryTag);
+
+        $viewParameters = [
+            'objectId' => $primaryTag->getId(),
+            'objectAction' => 'view',
+        ];
+
+        $flashes = [
+            [
+                'type' => 'notice',
+                'msg' => 'mautic.tagmanager.tag.notice.merge_success',
+                'msgVars' => [
+                    '%primary%' => $primaryTag->getTag(),
+                    '%secondary%' => $secondaryTag->getTag(),
+                ],
+            ],
+        ];
+
+        return $this->postActionRedirect([
+            'returnUrl' => $this->generateUrl('mautic_tagmanager_action', $viewParameters),
+            'viewParameters' => $viewParameters,
+            'contentTemplate' => 'MauticPlugin\\MauticTagManagerBundle\\Controller\\TagController::viewAction',
+            'passthroughVars' => [
+                'closeModal' => 1,
+            ],
+            'flashes' => $flashes,
+        ]);
+    }
+
+    private function renderMergeForm(Request $request, string $action, \Symfony\Component\Form\FormInterface $form, Tag $secondaryTag): Response
+    {
         $tmpl = $request->get('tmpl', 'index');
 
-        return $this->delegateView(
-            [
-                'viewParameters' => [
-                    'tmpl'         => $tmpl,
-                    'action'       => $action,
-                    'form'         => $form->createView(),
-                    'currentRoute' => $this->generateUrl(
-                        'mautic_tagmanager_action',
-                        [
-                            'objectAction' => 'merge',
-                            'objectId'     => $secondaryTag->getId(),
-                        ]
-                    ),
-                ],
-                'contentTemplate' => '@MauticTagManager/Tag/merge.html.twig',
-                'passthroughVars' => [
-                    'route'  => false,
-                    'target' => ('update' == $tmpl) ? '.tag-merge-options' : null,
-                ],
-            ]
-        );
+        return $this->delegateView([
+            'viewParameters' => [
+                'tmpl' => $tmpl,
+                'action' => $action,
+                'form' => $form->createView(),
+                'currentRoute' => $this->generateUrl(
+                    'mautic_tagmanager_action',
+                    [
+                        'objectAction' => 'merge',
+                        'objectId' => $secondaryTag->getId(),
+                    ]
+                ),
+            ],
+            'contentTemplate' => '@MauticTagManager/Tag/merge.html.twig',
+            'passthroughVars' => [
+                'route' => false,
+                'target' => ('update' == $tmpl) ? '.tag-merge-options' : null,
+            ],
+        ]);
     }
 
     /**

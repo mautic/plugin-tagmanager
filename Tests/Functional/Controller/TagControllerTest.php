@@ -13,10 +13,14 @@ use Mautic\UserBundle\Entity\User;
 use PHPUnit\Framework\Assert;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\PasswordHasherInterface;
+use MauticPlugin\MauticTagManagerBundle\Entity\TagDependencies;
+use MauticPlugin\MauticTagManagerBundle\Model\TagModel as TagManagerModel;
 
 class TagControllerTest extends MauticMysqlTestCase
 {
-    public const USERNAME = 'jhony';
+    private const USERNAME = 'testuser';
+    private const MERGE_URL_PATH = '/s/tags/merge/';
+
     /**
      * @var TagRepository
      */
@@ -25,23 +29,21 @@ class TagControllerTest extends MauticMysqlTestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        $tags = [
-            'tag1',
-            'tag2',
-            'tag3',
-            'tag4',
-        ];
-
-        /** @var TagModel $tagModel */
-        $tagModel            = static::getContainer()->get('mautic.lead.model.tag');
+        $tagModel = static::getContainer()->get('mautic.lead.model.tag');
         $this->tagRepository = $tagModel->getRepository();
+
+        $tags = ['Tag 1', 'Tag 2', 'Tag 3', 'Tag 4', 'Tag 5'];
 
         foreach ($tags as $tagName) {
             $tag = new Tag();
             $tag->setTag($tagName);
-            $tagModel->saveEntity($tag);
+            $this->em->persist($tag);
         }
+
+        $this->em->flush();
+        $this->em->clear();
+
+        $this->createAndLoginUser();
     }
 
     /**
@@ -199,7 +201,7 @@ class TagControllerTest extends MauticMysqlTestCase
         $tags    = $this->tagRepository->findAll();
         $mainTag = $tags[0];
 
-        $this->client->request('GET', '/s/tags/merge/'.$mainTag->getId());
+        $this->client->request('GET', self::MERGE_URL_PATH.$mainTag->getId());
         $clientResponse = $this->client->getResponse();
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
 
@@ -212,7 +214,7 @@ class TagControllerTest extends MauticMysqlTestCase
         $tags       = $this->tagRepository->findAll();
         $currentTag = $tags[0];
 
-        $crawler        = $this->client->request('GET', '/s/tags/merge/'.$currentTag->getId());
+        $crawler        = $this->client->request('GET', self::MERGE_URL_PATH.$currentTag->getId());
         $clientResponse = $this->client->getResponse();
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
 
@@ -227,7 +229,7 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeActionWithInvalidTag(): void
     {
-        $this->client->request('GET', '/s/tags/merge/999999');
+        $this->client->request('GET', self::MERGE_URL_PATH.'999999');
         $clientResponse = $this->client->getResponse();
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200 (redirect with error).');
     }
@@ -238,7 +240,7 @@ class TagControllerTest extends MauticMysqlTestCase
         $mainTag = $tags[0];
         $secTag  = $tags[1];
 
-        $crawler = $this->client->request('GET', '/s/tags/merge/'.$secTag->getId());
+        $crawler = $this->client->request('GET', self::MERGE_URL_PATH.$secTag->getId());
         $form    = $crawler->selectButton('Merge')->form();
         $field   = $form['tag_merge[tag_to_merge]'];
 
