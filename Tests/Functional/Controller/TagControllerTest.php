@@ -19,7 +19,6 @@ use MauticPlugin\MauticTagManagerBundle\Model\TagModel as TagManagerModel;
 class TagControllerTest extends MauticMysqlTestCase
 {
     private const USERNAME = 'testuser';
-    private const MERGE_URL_PATH = '/s/tags/merge/';
 
     /**
      * @var TagRepository
@@ -198,10 +197,10 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeAction(): void
     {
-        $tags    = $this->tagRepository->findAll();
+        $tags = $this->tagRepository->findAll();
         $mainTag = $tags[0];
 
-        $this->client->request('GET', self::MERGE_URL_PATH.$mainTag->getId());
+        $this->client->request('GET', '/s/tags/merge/'.$mainTag->getId());
         $clientResponse = $this->client->getResponse();
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
 
@@ -211,15 +210,15 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeActionExcludesCurrentTag(): void
     {
-        $tags       = $this->tagRepository->findAll();
+        $tags = $this->tagRepository->findAll();
         $currentTag = $tags[0];
 
-        $crawler        = $this->client->request('GET', self::MERGE_URL_PATH.$currentTag->getId());
+        $crawler = $this->client->request('GET', '/s/tags/merge/'.$currentTag->getId());
         $clientResponse = $this->client->getResponse();
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
 
-        $form    = $crawler->selectButton('Merge')->form();
-        $field   = $form['tag_merge[tag_to_merge]'];
+        $form = $crawler->selectButton('Merge')->form();
+        $field = $form['tag_merge[tag_to_merge]'];
 
         if ($field instanceof \Symfony\Component\DomCrawler\Field\ChoiceFormField) {
             $options = $field->availableOptionValues();
@@ -229,20 +228,20 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeActionWithInvalidTag(): void
     {
-        $this->client->request('GET', self::MERGE_URL_PATH.'999999');
+        $this->client->request('GET', '/s/tags/merge/999999');
         $clientResponse = $this->client->getResponse();
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200 (redirect with error).');
     }
 
     public function testMergeActionPost(): void
     {
-        $tags    = $this->tagRepository->findAll();
+        $tags = $this->tagRepository->findAll();
         $mainTag = $tags[0];
-        $secTag  = $tags[1];
+        $secTag = $tags[1];
 
-        $crawler = $this->client->request('GET', self::MERGE_URL_PATH.$secTag->getId());
-        $form    = $crawler->selectButton('Merge')->form();
-        $field   = $form['tag_merge[tag_to_merge]'];
+        $crawler = $this->client->request('GET', '/s/tags/merge/'.$secTag->getId());
+        $form = $crawler->selectButton('Merge')->form();
+        $field = $form['tag_merge[tag_to_merge]'];
 
         if ($field instanceof \Symfony\Component\DomCrawler\Field\ChoiceFormField) {
             $field->select((string) $mainTag->getId());
@@ -255,7 +254,7 @@ class TagControllerTest extends MauticMysqlTestCase
 
         $this->em->clear();
 
-        $remainingTags   = $this->tagRepository->findAll();
+        $remainingTags = $this->tagRepository->findAll();
         $remainingTagIds = array_map(fn ($tag) => $tag->getId(), $remainingTags);
 
         $this->assertNotContains($secTag->getId(), $remainingTagIds, 'Secondary tag should be deleted');

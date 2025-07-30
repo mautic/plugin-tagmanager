@@ -26,7 +26,7 @@ class TagController extends FormController
     private const PERMISSION_VIEW = 'tagManager:tagManager:view';
     private const PERMISSION_EDIT = 'tagManager:tagManager:edit';
     private const PERMISSION_DELETE = 'tagManager:tagManager:delete';
-    private const MERGE_URL_PATH = '/s/tags/merge/';
+    private const PERMISSION_CREATE = 'tagManager:tagManager:create';
 
     /**
      * Generate's default list view.
@@ -45,13 +45,13 @@ class TagController extends FormController
 
         // set some permissions
         $permissions = $this->security->isGranted([
-            'tagManager:tagManager:view',
-            'tagManager:tagManager:edit',
-            'tagManager:tagManager:create',
-            'tagManager:tagManager:delete',
+            self::PERMISSION_VIEW,
+            self::PERMISSION_EDIT,
+            self::PERMISSION_CREATE,
+            self::PERMISSION_DELETE,
         ], 'RETURN_ARRAY');
 
-        if (!$permissions['tagManager:tagManager:view']) {
+        if (!$permissions[self::PERMISSION_VIEW]) {
             return $this->accessDenied();
         }
 
@@ -160,7 +160,7 @@ class TagController extends FormController
      */
     public function newAction(Request $request, TagDependencies $tagDependencies)
     {
-        if (!$this->security->isGranted('tagManager:tagManager:create')) {
+        if (!$this->security->isGranted(self::PERMISSION_CREATE)) {
             return $this->accessDenied();
         }
 
@@ -251,7 +251,7 @@ class TagController extends FormController
      */
     public function editAction(Request $request, TagDependencies $tagDependencies, $objectId, $ignorePost = false)
     {
-        if (!$this->security->isGranted('tagManager:tagManager:edit')) {
+        if (!$this->security->isGranted(self::PERMISSION_EDIT)) {
             return $this->accessDenied();
         }
 
@@ -475,7 +475,7 @@ class TagController extends FormController
                     ],
                 ],
             ]);
-        } elseif (!$this->security->isGranted('tagManager:tagManager:view')) {
+        } elseif (!$this->security->isGranted(self::PERMISSION_VIEW)) {
             return $this->accessDenied();
         }
 
@@ -522,7 +522,7 @@ class TagController extends FormController
         $form = $this->createMergeForm($action, $secondaryTag->getId());
 
         if ('POST' === $request->getMethod()) {
-            return $this->handleMergePostRequest($request, $form, $secondaryTag, $permissions, $postActionVars);
+            return $this->handleMergePostRequest($form, $secondaryTag, $permissions, $postActionVars);
         }
 
         return $this->renderMergeForm($request, $action, $form, $secondaryTag);
@@ -588,7 +588,7 @@ class TagController extends FormController
         );
     }
 
-    private function handleMergePostRequest(Request $request, \Symfony\Component\Form\FormInterface $form, Tag $secondaryTag, array $permissions, array $postActionVars): Response
+    private function handleMergePostRequest(\Symfony\Component\Form\FormInterface $form, Tag $secondaryTag, array $permissions, array $postActionVars): Response
     {
         if ($this->isFormCancelled($form)) {
             return $this->handleFormCancellation($secondaryTag);
@@ -743,7 +743,7 @@ class TagController extends FormController
                     'msg'     => 'mautic.tagmanager.tag.error.notfound',
                     'msgVars' => ['%id%' => $objectId],
                 ];
-            } elseif (!$this->security->isGranted('tagManager:tagManager:delete')) {
+            } elseif (!$this->security->isGranted(self::PERMISSION_DELETE)) {
                 return $this->accessDenied();
             }
 
@@ -812,7 +812,7 @@ class TagController extends FormController
                         'msg'     => 'mautic.tagmanager.tag.error.notfound',
                         'msgVars' => ['%id%' => $objectId],
                     ];
-                } elseif (!$this->security->isGranted('tagManager:tagManager:delete')) {
+                } elseif (!$this->security->isGranted(self::PERMISSION_DELETE)) {
                     $flashes[] = $this->accessDenied(true);
                 } else {
                     $deleteIds[] = $objectId;
