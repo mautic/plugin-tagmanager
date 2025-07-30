@@ -207,6 +207,21 @@ class TagControllerTest extends MauticMysqlTestCase
         $this->assertStringContainsString('Merge', $crawler->text());
     }
 
+    public function testMergeActionExcludesCurrentTag(): void
+    {
+        $tags = $this->tagRepository->findAll();
+        $currentTag = $tags[0];
+
+        $crawler = $this->client->request('GET', '/s/tags/merge/'.$currentTag->getId());
+        $clientResponse = $this->client->getResponse();
+        $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
+
+        $form = $crawler->selectButton('Merge')->form();
+        $options = $form['tag_merge[tag_to_merge]']->availableOptionValues();
+        
+        $this->assertNotContains((string) $currentTag->getId(), $options, 'Current tag should be excluded from merge options');
+    }
+
     public function testMergeActionWithInvalidTag(): void
     {
         $this->client->request('GET', '/s/tags/merge/999999');

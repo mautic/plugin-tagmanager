@@ -543,7 +543,8 @@ class TagController extends FormController
             \MauticPlugin\MauticTagManagerBundle\Form\Type\TagMergeType::class,
             [],
             [
-                'action' => $action,
+                'action'      => $action,
+                'exclude_ids' => [$secondaryTag->getId()],
             ]
         );
 
@@ -588,7 +589,7 @@ class TagController extends FormController
                     $flashes = [
                         [
                             'type'    => 'notice',
-                            'msg'     => 'mautic.tagmanager.tag.merge.success',
+                            'msg'     => 'mautic.tagmanager.tag.notice.merge_success',
                             'msgVars' => [
                                 '%primary%'   => $primaryTag->getTag(),
                                 '%secondary%' => $secondaryTag->getTag(),

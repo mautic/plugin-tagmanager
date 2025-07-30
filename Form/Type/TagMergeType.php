@@ -2,8 +2,10 @@
 
 namespace MauticPlugin\MauticTagManagerBundle\Form\Type;
 
+use Doctrine\Common\Collections\Order;
 use Mautic\CoreBundle\Form\Type\FormButtonsType;
-use Mautic\LeadBundle\Form\Type\TagType;
+use Mautic\LeadBundle\Entity\Tag;
+use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
@@ -15,12 +17,23 @@ class TagMergeType extends AbstractType
     {
         $builder->add(
             'tag_to_merge',
-            TagType::class,
+            EntityType::class,
             [
+                'class'           => Tag::class,
+                'choice_label'    => 'tag',
                 'multiple'        => false,
                 'label'           => 'mautic.tagmanager.to.merge.into',
                 'required'        => true,
-                'add_transformer' => false,
+                'query_builder'   => function ($er) use ($options) {
+                    $qb = $er->createQueryBuilder('t')->orderBy('t.tag', Order::Ascending->value);
+                    
+                    if (!empty($options['exclude_ids'])) {
+                        $qb->andWhere('t.id NOT IN (:exclude_ids)')
+                           ->setParameter('exclude_ids', $options['exclude_ids']);
+                    }
+                    
+                    return $qb;
+                },
                 'constraints'     => [
                     new NotBlank(['message' => 'mautic.tagmanager.tag.choose.notblank']),
                 ],
@@ -44,6 +57,6 @@ class TagMergeType extends AbstractType
 
     public function configureOptions(OptionsResolver $resolver): void
     {
-        $resolver->setDefined(['action']);
+        $resolver->setDefined(['action', 'exclude_ids']);
     }
 }
