@@ -488,7 +488,7 @@ class TagController extends FormController
     /**
      * Merge two tags together.
      */
-    public function mergeAction(Request $request, int $objectId): \Symfony\Component\HttpFoundation\Response
+    public function mergeAction(Request $request, int $objectId): Response
     {
         $permissions = $this->security->isGranted(
             [

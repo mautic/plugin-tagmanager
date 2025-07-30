@@ -218,7 +218,7 @@ class TagControllerTest extends MauticMysqlTestCase
 
         $form    = $crawler->selectButton('Merge')->form();
         $field   = $form['tag_merge[tag_to_merge]'];
-        
+
         if ($field instanceof \Symfony\Component\DomCrawler\Field\ChoiceFormField) {
             $options = $field->availableOptionValues();
             $this->assertNotContains((string) $currentTag->getId(), $options, 'Current tag should be excluded from merge options');
@@ -241,7 +241,7 @@ class TagControllerTest extends MauticMysqlTestCase
         $crawler = $this->client->request('GET', '/s/tags/merge/'.$secTag->getId());
         $form    = $crawler->selectButton('Merge')->form();
         $field   = $form['tag_merge[tag_to_merge]'];
-        
+
         if ($field instanceof \Symfony\Component\DomCrawler\Field\ChoiceFormField) {
             $field->select((string) $mainTag->getId());
         }
