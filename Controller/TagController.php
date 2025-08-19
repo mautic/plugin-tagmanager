@@ -10,8 +10,8 @@ use Doctrine\ORM\Tools\Pagination\Paginator;
 use Mautic\CoreBundle\Controller\FormController;
 use Mautic\LeadBundle\Entity\Tag;
 use Mautic\LeadBundle\Model\TagModel;
-use MauticPlugin\MauticTagManagerBundle\Stats\TagDependencies;
 use MauticPlugin\MauticTagManagerBundle\Model\TagModel as TagManagerModel;
+use MauticPlugin\MauticTagManagerBundle\Stats\TagDependencies;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\SubmitButton;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -242,13 +242,8 @@ class TagController extends FormController
 
     /**
      * Generate's edit form and processes post data.
-     *
-     * @param int  $objectId
-     * @param bool $ignorePost
-     *
-     * @return Response
      */
-    public function editAction(Request $request, TagDependencies $tagDependencies, $objectId, $ignorePost = false)
+    public function editAction(Request $request, TagDependencies $tagDependencies, int $objectId, bool $ignorePost = false): Response
     {
         if (!$this->security->isGranted(self::PERMISSION_EDIT)) {
             return $this->accessDenied();
@@ -286,17 +281,9 @@ class TagController extends FormController
 
     /**
      * Create modifying response for tags - edit.
-     *
-     * @param string $action
-     * @param bool   $ignorePost
-     *
-     * @return Response
      */
     /**
      * @param array<string, mixed> $postActionVars
-     * @param string $action
-     * @param bool $ignorePost
-     * @return Response
      */
     private function createTagModifyResponse(Request $request, Tag $tag, TagDependencies $tagDependencies, array $postActionVars, string $action, bool $ignorePost): Response
     {
@@ -416,11 +403,8 @@ class TagController extends FormController
 
     /**
      * Get variables for POST action.
-     *
-     * @param int|null $objectId
      */
     /**
-     * @param int|null $objectId
      * @return array<string, mixed>
      */
     private function getPostActionVars(Request $request, ?int $objectId = null): array
@@ -451,10 +435,8 @@ class TagController extends FormController
 
     /**
      * Loads a specific form into the detailed panel.
-     *
-     * @return JsonResponse|Response
      */
-    public function viewAction(Request $request, TagDependencies $tagDependencies, $objectId)
+    public function viewAction(Request $request, TagDependencies $tagDependencies, int $objectId): Response
     {
         /** @var TagModel $model */
         $model    = $this->getModel('lead.tag');
@@ -604,7 +586,7 @@ class TagController extends FormController
     }
 
     /**
-     * @param array<string, bool> $permissions
+     * @param array<string, bool>  $permissions
      * @param array<string, mixed> $postActionVars
      */
     private function handleMergePostRequest(FormInterface $form, Tag $secondaryTag, array $permissions, array $postActionVars): Response
