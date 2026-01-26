@@ -488,7 +488,7 @@ class TagController extends FormController
     /**
      * Merge two tags together.
      */
-    public function mergeAction(Request $request, int $objectId): Response
+    public function mergeAction(Request $request, int $objectId, TagModel $model): Response
     {
         $permissions = $this->getMergePermissions();
 
