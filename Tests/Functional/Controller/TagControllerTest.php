@@ -15,6 +15,8 @@ use Symfony\Component\HttpFoundation\Request;
 
 class TagControllerTest extends MauticMysqlTestCase
 {
+    private const MERGE_ROUTE_BASE = '/s/tags/merge/';
+
     /**
      * @var TagRepository
      */
@@ -209,7 +211,7 @@ class TagControllerTest extends MauticMysqlTestCase
         $tags    = $this->tagRepository->findAll();
         $mainTag = $tags[0];
 
-        $this->client->request('GET', '/s/tags/merge/'.$mainTag->getId());
+        $this->client->request('GET', self::MERGE_ROUTE_BASE.$mainTag->getId());
         $clientResponse = $this->client->getResponse();
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
 
@@ -222,7 +224,7 @@ class TagControllerTest extends MauticMysqlTestCase
         $tags       = $this->tagRepository->findAll();
         $currentTag = $tags[0];
 
-        $crawler        = $this->client->request('GET', '/s/tags/merge/'.$currentTag->getId());
+        $crawler        = $this->client->request('GET', self::MERGE_ROUTE_BASE.$currentTag->getId());
         $clientResponse = $this->client->getResponse();
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
 
@@ -238,7 +240,7 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeActionWithInvalidTag(): void
     {
-        $this->client->request('GET', '/s/tags/merge/999999');
+        $this->client->request('GET', self::MERGE_ROUTE_BASE.'999999');
         $clientResponse = $this->client->getResponse();
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200 (redirect with error).');
     }
@@ -250,7 +252,7 @@ class TagControllerTest extends MauticMysqlTestCase
         $secTag  = $tags[1];
 
         // Test that the merge action returns the correct response
-        $crawler  = $this->client->request('GET', '/s/tags/merge/'.$secTag->getId());
+        $crawler  = $this->client->request('GET', self::MERGE_ROUTE_BASE.$secTag->getId());
         $response = $this->client->getResponse();
 
         // Debug: check what status code and content we're getting
