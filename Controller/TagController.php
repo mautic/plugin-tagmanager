@@ -496,8 +496,6 @@ class TagController extends FormController
             return $this->accessDenied();
         }
 
-        /** @var TagModel $model */
-        $model        = $this->getModel('lead.tag');
         $secondaryTag = $model->getEntity($objectId);
 
         if (null === $secondaryTag) {
