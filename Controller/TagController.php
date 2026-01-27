@@ -160,36 +160,36 @@ class TagController extends FormController
     public function newAction(Request $request, TagDependencies $tagDependencies)
     {
         if (!$this->security->isGranted(self::PERMISSION_CREATE)) {
-            $response = $this->accessDenied();
-        } else {
-            // retrieve the entity
-            $tag   = new \MauticPlugin\MauticTagManagerBundle\Entity\Tag();
-            $model = $this->getModel('tagmanager.tag');
-            \assert($model instanceof TagManagerModel);
-            // set the page we came from
-            $page = $request->getSession()->get('mautic.tagmanager.page', 1);
-            // set the return URL for post actions
-            $returnUrl = $this->generateUrl('mautic_tagmanager_index', ['page' => $page]);
-            $action    = $this->generateUrl('mautic_tagmanager_action', ['objectAction' => 'new']);
+            return $this->accessDenied();
+        }
 
-            // get the user form factory
-            $form = $model->createForm($tag, $this->formFactory, $action);
+        // retrieve the entity
+        $tag   = new \MauticPlugin\MauticTagManagerBundle\Entity\Tag();
+        $model = $this->getModel('tagmanager.tag');
+        \assert($model instanceof TagManagerModel);
+        // set the page we came from
+        $page = $request->getSession()->get('mautic.tagmanager.page', 1);
+        // set the return URL for post actions
+        $returnUrl = $this->generateUrl('mautic_tagmanager_index', ['page' => $page]);
+        $action    = $this->generateUrl('mautic_tagmanager_action', ['objectAction' => 'new']);
 
-            $response = $this->handleNewActionPost($request, $tagDependencies, $tag, $model, $form, $returnUrl, $page);
-            if (null === $response) {
-                $response = $this->delegateView([
-                    'viewParameters' => [
-                        'form'   => $form->createView(),
-                        'entity' => $tag,
-                    ],
-                    'contentTemplate' => '@MauticTagManager/Tag/form.html.twig',
-                    'passthroughVars' => [
-                        'activeLink'    => '#mautic_tagmanager_index',
-                        'route'         => $this->generateUrl('mautic_tagmanager_action', ['objectAction' => 'new']),
-                        'mauticContent' => 'tagmanager',
-                    ],
-                ]);
-            }
+        // get the user form factory
+        $form = $model->createForm($tag, $this->formFactory, $action);
+
+        $response = $this->handleNewActionPost($request, $tagDependencies, $tag, $model, $form, $returnUrl, $page);
+        if (null === $response) {
+            $response = $this->delegateView([
+                'viewParameters' => [
+                    'form'   => $form->createView(),
+                    'entity' => $tag,
+                ],
+                'contentTemplate' => '@MauticTagManager/Tag/form.html.twig',
+                'passthroughVars' => [
+                    'activeLink'    => '#mautic_tagmanager_index',
+                    'route'         => $this->generateUrl('mautic_tagmanager_action', ['objectAction' => 'new']),
+                    'mauticContent' => 'tagmanager',
+                ],
+            ]);
         }
 
         return $response;
