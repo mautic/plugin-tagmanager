@@ -11,6 +11,7 @@ use Mautic\UserBundle\Entity\Permission;
 use Mautic\UserBundle\Entity\Role;
 use Mautic\UserBundle\Entity\User;
 use PHPUnit\Framework\Assert;
+use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\HttpFoundation\Request;
 
 class TagControllerTest extends MauticMysqlTestCase
@@ -224,9 +225,11 @@ class TagControllerTest extends MauticMysqlTestCase
         $tags       = $this->tagRepository->findAll();
         $currentTag = $tags[0];
 
-        $crawler        = $this->client->request('GET', self::MERGE_ROUTE_BASE.$currentTag->getId());
+        $this->client->request('GET', self::MERGE_ROUTE_BASE.$currentTag->getId());
         $clientResponse = $this->client->getResponse();
         $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
+
+        $crawler = new Crawler((string) $clientResponse->getContent());
 
         // Check that the form exists and has the correct structure
         $this->assertCount(1, $crawler->filter('form'));
@@ -234,8 +237,9 @@ class TagControllerTest extends MauticMysqlTestCase
         // Check that the form has the tag_to_merge field
         $this->assertCount(1, $crawler->filter('select[name="tag_merge[tag_to_merge]"]'));
 
-        // Check that the form has hidden buttons (as designed for AJAX functionality)
-        $this->assertCount(1, $crawler->filter('.hide'));
+        $this->assertCount(1, $crawler->filter('#tag_merge_buttons'));
+        $this->assertCount(1, $crawler->filter('button#tag_merge_buttons_save'));
+        $this->assertCount(1, $crawler->filter('button#tag_merge_buttons_cancel'));
     }
 
     public function testMergeActionWithInvalidTag(): void
@@ -252,7 +256,7 @@ class TagControllerTest extends MauticMysqlTestCase
         $secTag  = $tags[1];
 
         // Test that the merge action returns the correct response
-        $crawler  = $this->client->request('GET', self::MERGE_ROUTE_BASE.$secTag->getId());
+        $this->client->request('GET', self::MERGE_ROUTE_BASE.$secTag->getId());
         $response = $this->client->getResponse();
 
         // Debug: check what status code and content we're getting
@@ -261,14 +265,17 @@ class TagControllerTest extends MauticMysqlTestCase
 
         $this->assertTrue($response->isOk(), 'Return code must be 200. Got: '.$statusCode.'. Content: '.substr($content, 0, 500));
 
+        $crawler = new Crawler((string) $response->getContent());
+
         // Check that the form exists and has the correct structure
         $this->assertCount(1, $crawler->filter('form'));
 
         // Check that the form has the tag_to_merge field
         $this->assertCount(1, $crawler->filter('select[name="tag_merge[tag_to_merge]"]'));
 
-        // Check that the form has hidden buttons (as designed for AJAX functionality)
-        $this->assertCount(1, $crawler->filter('.hide'));
+        $this->assertCount(1, $crawler->filter('#tag_merge_buttons'));
+        $this->assertCount(1, $crawler->filter('button#tag_merge_buttons_save'));
+        $this->assertCount(1, $crawler->filter('button#tag_merge_buttons_cancel'));
 
         // Test the actual merge functionality by calling the model directly
         $tagModel = static::getContainer()->get('mautic.lead.model.tag');
