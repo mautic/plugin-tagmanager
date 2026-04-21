@@ -339,9 +339,9 @@ class TagController extends FormController
                         ];
 
                         return $this->postActionRedirect($postActionVars);
-                    } else {
-                        return $this->viewAction($request, $tagDependencies, $tag->getId());
                     }
+
+                    return $this->viewAction($request, $tagDependencies, $tag->getId());
                 }
             }
 
