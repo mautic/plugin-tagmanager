@@ -4,10 +4,18 @@ declare(strict_types=1);
 
 namespace MauticPlugin\MauticTagManagerBundle\Tests\Functional\Controller;
 
+use Mautic\CampaignBundle\Entity\Campaign;
+use Mautic\CampaignBundle\Entity\Event;
 use Mautic\CoreBundle\Test\MauticMysqlTestCase;
+use Mautic\FormBundle\Entity\Action;
+use Mautic\FormBundle\Entity\Form;
 use Mautic\LeadBundle\Entity\Lead;
+use Mautic\LeadBundle\Entity\LeadList;
 use Mautic\LeadBundle\Entity\Tag;
 use Mautic\LeadBundle\Entity\TagRepository;
+use Mautic\PointBundle\Entity\Trigger;
+use Mautic\PointBundle\Entity\TriggerEvent;
+use Mautic\ReportBundle\Entity\Report;
 use Mautic\UserBundle\Entity\Permission;
 use Mautic\UserBundle\Entity\Role;
 use Mautic\UserBundle\Entity\User;
@@ -348,6 +356,200 @@ class TagControllerTest extends MauticMysqlTestCase
 
         $this->assertNotContains($secTag->getId(), $remainingTagIds, 'Secondary tag should be deleted');
         $this->assertContains($mainTag->getId(), $remainingTagIds, 'Main tag should still exist');
+    }
+
+    public function testMergeActionUpdatesStoredTagDependencies(): void
+    {
+        $mainTag = $this->tagRepository->findOneBy(['tag' => 'tag1']);
+        $secTag  = $this->tagRepository->findOneBy(['tag' => 'tag2']);
+        \assert($mainTag instanceof Tag);
+        \assert($secTag instanceof Tag);
+
+        $mainTagId   = (int) $mainTag->getId();
+        $secTagId    = (int) $secTag->getId();
+        $mainTagName = $mainTag->getTag();
+        $secTagName  = $secTag->getTag();
+
+        $campaignChangeEvent   = $this->createCampaignEventWithChangeTags($mainTag, $secTag);
+        $campaignTagCondition  = $this->createCampaignEventWithTagCondition($mainTag, $secTag);
+        $segment               = $this->createSegmentWithTagFilter($mainTag, $secTag);
+        $formAction            = $this->createFormActionWithChangeTags($mainTagName, $secTagName);
+        $pointTriggerEvent     = $this->createPointTriggerEventWithChangeTags($mainTagName, $secTagName);
+        $report                = $this->createReportWithTagFilter($mainTagId, $secTagId);
+        $campaignChangeEventId = (int) $campaignChangeEvent->getId();
+        $campaignConditionId   = (int) $campaignTagCondition->getId();
+        $segmentId             = (int) $segment->getId();
+        $formActionId          = (int) $formAction->getId();
+        $pointTriggerEventId   = (int) $pointTriggerEvent->getId();
+        $reportId              = (int) $report->getId();
+
+        $tagModel = static::getContainer()->get('mautic.lead.model.tag');
+        $tagModel->tagMerge($mainTag, $secTag);
+
+        $this->em->clear();
+
+        $campaignChangeEvent = $this->em->find(Event::class, $campaignChangeEventId);
+        \assert($campaignChangeEvent instanceof Event);
+        Assert::assertSame([$mainTagName], $campaignChangeEvent->getProperties()['add_tags']);
+        Assert::assertSame([$mainTagId], $campaignChangeEvent->getProperties()['properties']['add_tags']);
+
+        $campaignTagCondition = $this->em->find(Event::class, $campaignConditionId);
+        \assert($campaignTagCondition instanceof Event);
+        Assert::assertSame([$mainTagName], $campaignTagCondition->getProperties()['tags']);
+        Assert::assertSame([$mainTagId], $campaignTagCondition->getProperties()['properties']['tags']);
+
+        $segment = $this->em->find(LeadList::class, $segmentId);
+        \assert($segment instanceof LeadList);
+        Assert::assertSame([$mainTagId], $segment->getFilters()[0]['properties']['filter']);
+
+        $formAction = $this->em->find(Action::class, $formActionId);
+        \assert($formAction instanceof Action);
+        Assert::assertSame([$mainTagName], $formAction->getProperties()['add_tags']);
+
+        $pointTriggerEvent = $this->em->find(TriggerEvent::class, $pointTriggerEventId);
+        \assert($pointTriggerEvent instanceof TriggerEvent);
+        Assert::assertSame([$mainTagName], $pointTriggerEvent->getProperties()['add_tags']);
+
+        $report = $this->em->find(Report::class, $reportId);
+        \assert($report instanceof Report);
+        Assert::assertSame([$mainTagId], $report->getFilters()[0]['value']);
+        Assert::assertNull($this->tagRepository->find($secTagId));
+    }
+
+    private function createCampaignEventWithChangeTags(Tag $mainTag, Tag $secTag): Event
+    {
+        $campaign = $this->createCampaign('change tags campaign');
+        $event    = new Event();
+        $event->setCampaign($campaign);
+        $event->setName('Change tags');
+        $event->setType('lead.changetags');
+        $event->setEventType('action');
+        $event->setProperties([
+            'add_tags'   => [$mainTag->getTag(), $secTag->getTag()],
+            'properties' => [
+                'add_tags' => [$mainTag->getId(), $secTag->getId()],
+            ],
+        ]);
+        $this->em->persist($event);
+        $this->em->flush();
+
+        return $event;
+    }
+
+    private function createCampaignEventWithTagCondition(Tag $mainTag, Tag $secTag): Event
+    {
+        $campaign = $this->createCampaign('tag condition campaign');
+        $event    = new Event();
+        $event->setCampaign($campaign);
+        $event->setName('Has tag');
+        $event->setType('lead.tags');
+        $event->setEventType('condition');
+        $event->setProperties([
+            'tags'       => [$mainTag->getTag(), $secTag->getTag()],
+            'properties' => [
+                'tags' => [$mainTag->getId(), $secTag->getId()],
+            ],
+        ]);
+        $this->em->persist($event);
+        $this->em->flush();
+
+        return $event;
+    }
+
+    private function createCampaign(string $name): Campaign
+    {
+        $campaign = new Campaign();
+        $campaign->setName($name);
+        $this->em->persist($campaign);
+        $this->em->flush();
+
+        return $campaign;
+    }
+
+    private function createSegmentWithTagFilter(Tag $mainTag, Tag $secTag): LeadList
+    {
+        $segment = new LeadList();
+        $segment->setName('tag segment');
+        $segment->setPublicName('tag segment');
+        $segment->setAlias('tag-segment');
+        $segment->setFilters([
+            [
+                'glue'       => 'and',
+                'field'      => 'tags',
+                'object'     => 'lead',
+                'type'       => 'tags',
+                'operator'   => 'in',
+                'properties' => [
+                    'filter' => [$mainTag->getId(), $secTag->getId()],
+                ],
+            ],
+        ]);
+        $this->em->persist($segment);
+        $this->em->flush();
+
+        return $segment;
+    }
+
+    private function createFormActionWithChangeTags(string $mainTagName, string $secTagName): Action
+    {
+        $form = new Form();
+        $form->setName('tag form');
+        $form->setAlias('tag-form');
+        $this->em->persist($form);
+        $this->em->flush();
+
+        $action = new Action();
+        $action->setName('change tags');
+        $action->setForm($form);
+        $action->setType('lead.changetags');
+        $action->setProperties([
+            'add_tags' => [$mainTagName, $secTagName],
+        ]);
+        $this->em->persist($action);
+        $this->em->flush();
+
+        return $action;
+    }
+
+    private function createPointTriggerEventWithChangeTags(string $mainTagName, string $secTagName): TriggerEvent
+    {
+        $trigger = new Trigger();
+        $trigger->setName('tag trigger');
+        $this->em->persist($trigger);
+        $this->em->flush();
+
+        $event = new TriggerEvent();
+        $event->setName('change tags');
+        $event->setTrigger($trigger);
+        $event->setType('lead.changetags');
+        $event->setProperties([
+            'add_tags' => [$mainTagName, $secTagName],
+        ]);
+        $this->em->persist($event);
+        $this->em->flush();
+
+        return $event;
+    }
+
+    private function createReportWithTagFilter(int $mainTagId, int $secTagId): Report
+    {
+        $report = new Report();
+        $report->setName('tag report');
+        $report->setSource('leads');
+        $report->setColumns(['l.id']);
+        $report->setFilters([
+            [
+                'column'    => 'tag',
+                'glue'      => 'and',
+                'dynamic'   => null,
+                'condition' => 'in',
+                'value'     => [$mainTagId, $secTagId],
+            ],
+        ]);
+        $this->em->persist($report);
+        $this->em->flush();
+
+        return $report;
     }
 
     private function createRole(bool $isAdmin = false): Role
