@@ -247,37 +247,39 @@ class TagController extends FormController
     public function editAction(Request $request, TagDependencies $tagDependencies, int $objectId, bool $ignorePost = false): Response
     {
         if (!$this->security->isGranted(self::PERMISSION_EDIT)) {
-            return $this->accessDenied();
-        }
+            $response = $this->accessDenied();
+        } else {
+            $postActionVars = $this->getPostActionVars($request, $objectId);
 
-        $postActionVars = $this->getPostActionVars($request, $objectId);
+            try {
+                $tag = $this->getTag($objectId);
 
-        try {
-            $tag = $this->getTag($objectId);
-
-            return $this->createTagModifyResponse(
-                $request,
-                $tag,
-                $tagDependencies,
-                $postActionVars,
-                $this->generateUrl('mautic_tagmanager_action', ['objectAction' => 'edit', 'objectId' => $objectId]),
-                $ignorePost
-            );
-        } catch (AccessDeniedException) {
-            return $this->accessDenied();
-        } catch (EntityNotFoundException) {
-            return $this->postActionRedirect(
-                array_merge($postActionVars, [
-                    'flashes' => [
-                        [
-                            'type'    => 'error',
-                            'msg'     => 'mautic.tagmanager.tag.error.notfound',
-                            'msgVars' => ['%id%' => $objectId],
+                $response = $this->createTagModifyResponse(
+                    $request,
+                    $tag,
+                    $tagDependencies,
+                    $postActionVars,
+                    $this->generateUrl('mautic_tagmanager_action', ['objectAction' => 'edit', 'objectId' => $objectId]),
+                    $ignorePost
+                );
+            } catch (AccessDeniedException) {
+                $response = $this->accessDenied();
+            } catch (EntityNotFoundException) {
+                $response = $this->postActionRedirect(
+                    array_merge($postActionVars, [
+                        'flashes' => [
+                            [
+                                'type'    => 'error',
+                                'msg'     => 'mautic.tagmanager.tag.error.notfound',
+                                'msgVars' => ['%id%' => $objectId],
+                            ],
                         ],
-                    ],
-                ])
-            );
+                    ])
+                );
+            }
         }
+
+        return $response;
     }
 
     /**
@@ -324,7 +326,7 @@ class TagController extends FormController
     {
         $response = null;
 
-        if (!$cancelled = $this->isFormCancelled($form)) {
+        if (!$this->isFormCancelled($form)) {
             if ($this->isFormValid($form)) {
                 $isUnique = $this->isTagUnique($tag, $tagModel);
 
@@ -508,39 +510,7 @@ class TagController extends FormController
      */
     public function mergeAction(Request $request, int $objectId, TagModel $model): Response
     {
-        $permissions = $this->getMergePermissions();
-
-        if (!$permissions[self::PERMISSION_VIEW]) {
-            return $this->accessDenied();
-        }
-
-        $secondaryTag = $model->getEntity($objectId);
-
-        if (null === $secondaryTag) {
-            return $this->handleTagNotFound($objectId);
-        }
-
-        $postActionVars = $this->getMergePostActionVars($request);
-        $action         = $this->generateUrl('mautic_tagmanager_action', [
-            'objectAction' => 'merge',
-            'objectId'     => $secondaryTag->getId(),
-        ]);
-
-        $form = $this->createMergeForm($action, $secondaryTag->getId());
-
-        if ('POST' === $request->getMethod()) {
-            return $this->handleMergePostRequest($form, $secondaryTag, $permissions, $postActionVars, $model);
-        }
-
-        return $this->renderMergeForm($request, $action, $form, $secondaryTag);
-    }
-
-    /**
-     * @return array<string, bool>
-     */
-    private function getMergePermissions(): array
-    {
-        return $this->security->isGranted(
+        $permissions = $this->security->isGranted(
             [
                 self::PERMISSION_VIEW,
                 self::PERMISSION_EDIT,
@@ -548,6 +518,37 @@ class TagController extends FormController
             ],
             'RETURN_ARRAY'
         );
+
+        if (!$permissions[self::PERMISSION_VIEW]) {
+            $response = $this->accessDenied();
+        } else {
+            $secondaryTag = $model->getEntity($objectId);
+
+            if (null === $secondaryTag) {
+                $response = $this->handleTagNotFound($objectId);
+            } else {
+                $postActionVars = $this->getMergePostActionVars($request);
+                $action         = $this->generateUrl('mautic_tagmanager_action', [
+                    'objectAction' => 'merge',
+                    'objectId'     => $secondaryTag->getId(),
+                ]);
+
+                $form = $this->formFactory->create(
+                    \MauticPlugin\MauticTagManagerBundle\Form\Type\TagMergeType::class,
+                    [],
+                    [
+                        'action'      => $action,
+                        'exclude_ids' => [$secondaryTag->getId()],
+                    ]
+                );
+
+                $response = 'POST' === $request->getMethod()
+                    ? $this->handleMergePostRequest($form, $secondaryTag, $permissions, $postActionVars, $model)
+                    : $this->renderMergeForm($request, $action, $form, $secondaryTag);
+            }
+        }
+
+        return $response;
     }
 
     private function handleTagNotFound(int $objectId): Response
@@ -589,18 +590,6 @@ class TagController extends FormController
         ];
     }
 
-    private function createMergeForm(string $action, int $excludeId): FormInterface
-    {
-        return $this->formFactory->create(
-            \MauticPlugin\MauticTagManagerBundle\Form\Type\TagMergeType::class,
-            [],
-            [
-                'action'      => $action,
-                'exclude_ids' => [$excludeId],
-            ]
-        );
-    }
-
     /**
      * @param array<string, bool>  $permissions
      * @param array<string, mixed> $postActionVars
@@ -608,22 +597,22 @@ class TagController extends FormController
     private function handleMergePostRequest(FormInterface $form, Tag $secondaryTag, array $permissions, array $postActionVars, TagModel $model): Response
     {
         if ($this->isFormCancelled($form) || !$this->isFormValid($form)) {
-            return $this->handleFormCancellation($secondaryTag);
+            $response = $this->handleFormCancellation($secondaryTag);
+        } else {
+            $data = $form->getData();
+            /** @var Tag|null $primaryTag */
+            $primaryTag = $data['tag_to_merge'];
+
+            if (null === $primaryTag) {
+                $response = $this->handlePrimaryTagNotFound($postActionVars);
+            } elseif (!$permissions[self::PERMISSION_EDIT] || !$permissions[self::PERMISSION_DELETE]) {
+                $response = $this->accessDenied();
+            } else {
+                $response = $this->performTagMerge($primaryTag, $secondaryTag, $model);
+            }
         }
 
-        $data = $form->getData();
-        /** @var Tag|null $primaryTag */
-        $primaryTag = $data['tag_to_merge'];
-
-        if (null === $primaryTag) {
-            return $this->handlePrimaryTagNotFound($postActionVars);
-        }
-
-        if (!$permissions[self::PERMISSION_EDIT] || !$permissions[self::PERMISSION_DELETE]) {
-            return $this->accessDenied();
-        }
-
-        return $this->performTagMerge($primaryTag, $secondaryTag, $model);
+        return $response;
     }
 
     private function handleFormCancellation(Tag $secondaryTag): Response
