@@ -98,8 +98,6 @@ class TagControllerTest extends MauticMysqlTestCase
     {
         $tagId = $this->tagRepository->findOneBy([])->getId();
         $this->client->request('POST', '/s/tags/delete/'.$tagId);
-        $this->client->getResponse();
-
         $this->assertResponseIsSuccessful();
         $this->assertSame($this->tagRepository->find($tagId), null, 'Assert that tag is deleted');
     }
@@ -120,8 +118,6 @@ class TagControllerTest extends MauticMysqlTestCase
         Assert::assertSame(1, $this->countLeadTagAssociations($tagId));
 
         $this->client->request('POST', '/s/tags/delete/'.$tagId);
-        $this->client->getResponse();
-
         $this->assertResponseIsSuccessful();
         $this->assertSame($this->tagRepository->find($tagId), null, 'Assert that tag is deleted');
         Assert::assertSame(0, $this->countLeadTagAssociations($tagId));
