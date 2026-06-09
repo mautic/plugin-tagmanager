@@ -104,8 +104,6 @@ final class TagDependenciesTest extends MauticMysqlTestCase
         $tag         = $this->createTag('TagA');
         $this->createReportWithTagEmpty();
         $this->client->request('GET', "/s/tags/view/{$tag->getId()}");
-        $clientResponse = $this->client->getResponse();
-        // check that the page loads without errors
         $this->assertResponseIsSuccessful();
     }
 
