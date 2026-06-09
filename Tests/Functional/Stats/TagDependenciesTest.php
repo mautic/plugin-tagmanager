@@ -16,7 +16,6 @@ use Mautic\LeadBundle\Entity\Tag;
 use Mautic\PointBundle\Entity\Trigger;
 use Mautic\PointBundle\Entity\TriggerEvent;
 use Mautic\ReportBundle\Entity\Report;
-use Symfony\Component\HttpFoundation\Response;
 
 final class TagDependenciesTest extends MauticMysqlTestCase
 {
@@ -107,7 +106,7 @@ final class TagDependenciesTest extends MauticMysqlTestCase
         $this->client->request('GET', "/s/tags/view/{$tag->getId()}");
         $clientResponse = $this->client->getResponse();
         // check that the page loads without errors
-        $this->assertSame(Response::HTTP_OK, $clientResponse->getStatusCode());
+        $this->assertResponseIsSuccessful();
     }
 
     private function createTag(string $tagName): Tag
