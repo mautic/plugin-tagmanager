@@ -208,13 +208,13 @@ class TagControllerTest extends MauticMysqlTestCase
     public function testNewActionValidation(): void
     {
         $crawler = $this->client->request('GET', '/s/tags/new');
-        $this->assertTrue($this->client->getResponse()->isOk());
+        $this->assertResponseIsSuccessful();
 
         $buttonCrawler  = $crawler->selectButton('Save');
         $form           = $buttonCrawler->form();
         $form->setValues(['tag_entity[tag]' => '']);
         $this->client->submit($form);
-        Assert::assertTrue($this->client->getResponse()->isOk());
+        self::assertResponseIsSuccessful();
         Assert::assertStringContainsString('A value is required.', $this->client->getResponse()->getContent());
     }
 
@@ -271,8 +271,8 @@ class TagControllerTest extends MauticMysqlTestCase
         $mainTag = $tags[0];
 
         $this->client->request('GET', self::MERGE_ROUTE_BASE.$mainTag->getId());
-        $clientResponse = $this->client->getResponse();
-        $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
+        $this->client->getResponse();
+        $this->assertResponseIsSuccessful('Return code must be 200.');
 
         $crawler = $this->client->getCrawler();
         $this->assertStringContainsString('Merge', $crawler->text());
@@ -285,7 +285,7 @@ class TagControllerTest extends MauticMysqlTestCase
 
         $this->client->request('GET', self::MERGE_ROUTE_BASE.$currentTag->getId());
         $clientResponse = $this->client->getResponse();
-        $this->assertTrue($clientResponse->isOk(), 'Return code must be 200.');
+        $this->assertResponseIsSuccessful('Return code must be 200.');
 
         $crawler = new Crawler((string) $clientResponse->getContent());
 
@@ -303,8 +303,8 @@ class TagControllerTest extends MauticMysqlTestCase
     public function testMergeActionWithInvalidTag(): void
     {
         $this->client->request('GET', self::MERGE_ROUTE_BASE.'999999');
-        $clientResponse = $this->client->getResponse();
-        $this->assertTrue($clientResponse->isOk(), 'Return code must be 200 (redirect with error).');
+        $this->client->getResponse();
+        $this->assertResponseIsSuccessful('Return code must be 200 (redirect with error).');
     }
 
     public function testMergeActionPost(): void
