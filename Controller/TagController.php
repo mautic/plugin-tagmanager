@@ -27,6 +27,14 @@ class TagController extends FormController
     private const PERMISSION_DELETE = 'tagManager:tagManager:delete';
     private const PERMISSION_CREATE = 'tagManager:tagManager:create';
 
+    private TagModel $leadTagModel;
+
+    #[\Symfony\Contracts\Service\Attribute\Required]
+    public function setLeadTagModel(TagModel $leadTagModel): void
+    {
+        $this->leadTagModel = $leadTagModel;
+    }
+
     /**
      * Generate's default list view.
      *
@@ -283,9 +291,6 @@ class TagController extends FormController
     }
 
     /**
-     * Create modifying response for tags - edit.
-     */
-    /**
      * @param array<string, mixed> $postActionVars
      */
     private function createTagModifyResponse(Request $request, Tag $tag, TagDependencies $tagDependencies, array $postActionVars, string $action, bool $ignorePost): Response
@@ -422,9 +427,6 @@ class TagController extends FormController
     }
 
     /**
-     * Get variables for POST action.
-     */
-    /**
      * @return array<string, mixed>
      */
     private function getPostActionVars(Request $request, ?int $objectId = null): array
@@ -508,7 +510,7 @@ class TagController extends FormController
     /**
      * Merge two tags together.
      */
-    public function mergeAction(Request $request, int $objectId, TagModel $model): Response
+    public function mergeAction(Request $request, int $objectId): Response
     {
         $permissions = $this->security->isGranted(
             [
@@ -522,7 +524,7 @@ class TagController extends FormController
         if (!$permissions[self::PERMISSION_VIEW]) {
             $response = $this->accessDenied();
         } else {
-            $secondaryTag = $model->getEntity($objectId);
+            $secondaryTag = $this->leadTagModel->getEntity($objectId);
 
             if (null === $secondaryTag) {
                 $response = $this->handleTagNotFound($objectId);
@@ -543,7 +545,7 @@ class TagController extends FormController
                 );
 
                 $response = 'POST' === $request->getMethod()
-                    ? $this->handleMergePostRequest($form, $secondaryTag, $permissions, $postActionVars, $model)
+                    ? $this->handleMergePostRequest($form, $secondaryTag, $permissions, $postActionVars)
                     : $this->renderMergeForm($request, $action, $form, $secondaryTag);
             }
         }
@@ -594,7 +596,7 @@ class TagController extends FormController
      * @param array<string, bool>  $permissions
      * @param array<string, mixed> $postActionVars
      */
-    private function handleMergePostRequest(FormInterface $form, Tag $secondaryTag, array $permissions, array $postActionVars, TagModel $model): Response
+    private function handleMergePostRequest(FormInterface $form, Tag $secondaryTag, array $permissions, array $postActionVars): Response
     {
         if ($this->isFormCancelled($form) || !$this->isFormValid($form)) {
             $response = $this->handleFormCancellation($secondaryTag);
@@ -608,7 +610,7 @@ class TagController extends FormController
             } elseif (!$permissions[self::PERMISSION_EDIT] || !$permissions[self::PERMISSION_DELETE]) {
                 $response = $this->accessDenied();
             } else {
-                $response = $this->performTagMerge($primaryTag, $secondaryTag, $model);
+                $response = $this->performTagMerge($primaryTag, $secondaryTag);
             }
         }
 
@@ -654,9 +656,9 @@ class TagController extends FormController
         );
     }
 
-    private function performTagMerge(Tag $primaryTag, Tag $secondaryTag, TagModel $model): Response
+    private function performTagMerge(Tag $primaryTag, Tag $secondaryTag): Response
     {
-        $model->tagMerge($primaryTag, $secondaryTag);
+        $this->leadTagModel->tagMerge($primaryTag, $secondaryTag);
 
         $viewParameters = [
             'objectId'     => $primaryTag->getId(),
@@ -768,8 +770,9 @@ class TagController extends FormController
     /**
      * Deletes a group of entities.
      */
-    public function batchDeleteAction(Request $request, TagModel $model): Response
+    public function batchDeleteAction(Request $request): Response
     {
+        $model     = $this->leadTagModel;
         $page      = $request->getSession()->get('mautic.tagmanager.page', 1);
         $returnUrl = $this->generateUrl('mautic_tagmanager_index', ['page' => $page]);
         $flashes   = [];

@@ -267,10 +267,10 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeAction(): void
     {
-        $tags    = $this->tagRepository->findAll();
-        $mainTag = $tags[0];
+        $tags       = $this->tagRepository->findAll();
+        $primaryTag = $tags[0];
 
-        $this->client->request('GET', self::MERGE_ROUTE_BASE.$mainTag->getId());
+        $this->client->request('GET', self::MERGE_ROUTE_BASE.$primaryTag->getId());
         $this->client->getResponse();
         $this->assertResponseIsSuccessful('Return code must be 200.');
 
@@ -309,12 +309,14 @@ class TagControllerTest extends MauticMysqlTestCase
 
     public function testMergeActionPost(): void
     {
-        $tags    = $this->tagRepository->findAll();
-        $mainTag = $tags[0];
-        $secTag  = $tags[1];
+        $tags           = $this->tagRepository->findAll();
+        $primaryTag     = $tags[0];
+        $secondaryTag   = $tags[1];
+        $primaryTagId   = (int) $primaryTag->getId();
+        $secondaryTagId = (int) $secondaryTag->getId();
 
         // Test that the merge action returns the correct response
-        $this->client->request('GET', self::MERGE_ROUTE_BASE.$secTag->getId());
+        $this->client->request('GET', self::MERGE_ROUTE_BASE.$secondaryTagId);
         $response = $this->client->getResponse();
 
         // Debug: check what status code and content we're getting
@@ -335,37 +337,55 @@ class TagControllerTest extends MauticMysqlTestCase
         $this->assertCount(1, $crawler->filter('button#tag_merge_buttons_save'));
         $this->assertCount(1, $crawler->filter('button#tag_merge_buttons_cancel'));
 
+        $secondaryOnlyContact = new Lead();
+        $secondaryOnlyContact->setEmail('secondary-tag-contact@example.com');
+        $secondaryOnlyContact->addTag($secondaryTag);
+
+        $bothTagsContact = new Lead();
+        $bothTagsContact->setEmail('both-tags-contact@example.com');
+        $bothTagsContact->addTag($primaryTag);
+        $bothTagsContact->addTag($secondaryTag);
+
+        $this->em->persist($secondaryOnlyContact);
+        $this->em->persist($bothTagsContact);
+        $this->em->flush();
+
+        Assert::assertSame(1, $this->countLeadTagAssociations($primaryTagId));
+        Assert::assertSame(2, $this->countLeadTagAssociations($secondaryTagId));
+
         // Test the actual merge functionality by calling the model directly
         $tagModel = static::getContainer()->get('mautic.lead.model.tag');
-        $tagModel->tagMerge($mainTag, $secTag);
+        $tagModel->tagMerge($primaryTag, $secondaryTag);
 
         $this->em->clear();
 
         $remainingTags   = $this->tagRepository->findAll();
         $remainingTagIds = array_map(fn ($tag) => $tag->getId(), $remainingTags);
 
-        $this->assertNotContains($secTag->getId(), $remainingTagIds, 'Secondary tag should be deleted');
-        $this->assertContains($mainTag->getId(), $remainingTagIds, 'Main tag should still exist');
+        Assert::assertSame(2, $this->countLeadTagAssociations($primaryTagId));
+        Assert::assertSame(0, $this->countLeadTagAssociations($secondaryTagId));
+        $this->assertNotContains($secondaryTagId, $remainingTagIds, 'Secondary tag should be deleted');
+        $this->assertContains($primaryTagId, $remainingTagIds, 'Primary tag should still exist');
     }
 
     public function testMergeActionUpdatesStoredTagDependencies(): void
     {
-        $mainTag = $this->tagRepository->findOneBy(['tag' => 'tag1']);
-        $secTag  = $this->tagRepository->findOneBy(['tag' => 'tag2']);
-        \assert($mainTag instanceof Tag);
-        \assert($secTag instanceof Tag);
+        $primaryTag   = $this->tagRepository->findOneBy(['tag' => 'tag1']);
+        $secondaryTag = $this->tagRepository->findOneBy(['tag' => 'tag2']);
+        \assert($primaryTag instanceof Tag);
+        \assert($secondaryTag instanceof Tag);
 
-        $mainTagId   = (int) $mainTag->getId();
-        $secTagId    = (int) $secTag->getId();
-        $mainTagName = $mainTag->getTag();
-        $secTagName  = $secTag->getTag();
+        $primaryTagId     = (int) $primaryTag->getId();
+        $secondaryTagId   = (int) $secondaryTag->getId();
+        $primaryTagName   = $primaryTag->getTag();
+        $secondaryTagName = $secondaryTag->getTag();
 
-        $campaignChangeEvent   = $this->createCampaignEventWithChangeTags($mainTag, $secTag);
-        $campaignTagCondition  = $this->createCampaignEventWithTagCondition($mainTag, $secTag);
-        $segment               = $this->createSegmentWithTagFilter($mainTag, $secTag);
-        $formAction            = $this->createFormActionWithChangeTags($mainTagName, $secTagName);
-        $pointTriggerEvent     = $this->createPointTriggerEventWithChangeTags($mainTagName, $secTagName);
-        $report                = $this->createReportWithTagFilter($mainTagId, $secTagId);
+        $campaignChangeEvent   = $this->createCampaignEventWithChangeTags($primaryTag, $secondaryTag);
+        $campaignTagCondition  = $this->createCampaignEventWithTagCondition($primaryTag, $secondaryTag);
+        $segment               = $this->createSegmentWithTagFilter($primaryTag, $secondaryTag);
+        $formAction            = $this->createFormActionWithChangeTags($primaryTagName, $secondaryTagName);
+        $pointTriggerEvent     = $this->createPointTriggerEventWithChangeTags($primaryTagName, $secondaryTagName);
+        $report                = $this->createReportWithTagFilter($primaryTagId, $secondaryTagId);
         $campaignChangeEventId = (int) $campaignChangeEvent->getId();
         $campaignConditionId   = (int) $campaignTagCondition->getId();
         $segmentId             = (int) $segment->getId();
@@ -374,39 +394,39 @@ class TagControllerTest extends MauticMysqlTestCase
         $reportId              = (int) $report->getId();
 
         $tagModel = static::getContainer()->get('mautic.lead.model.tag');
-        $tagModel->tagMerge($mainTag, $secTag);
+        $tagModel->tagMerge($primaryTag, $secondaryTag);
 
         $this->em->clear();
 
         $campaignChangeEvent = $this->em->find(Event::class, $campaignChangeEventId);
         \assert($campaignChangeEvent instanceof Event);
-        Assert::assertSame([$mainTagName], $campaignChangeEvent->getProperties()['add_tags']);
-        Assert::assertSame([$mainTagId], $campaignChangeEvent->getProperties()['properties']['add_tags']);
+        Assert::assertSame([$primaryTagName], $campaignChangeEvent->getProperties()['add_tags']);
+        Assert::assertSame([$primaryTagId], $campaignChangeEvent->getProperties()['properties']['add_tags']);
 
         $campaignTagCondition = $this->em->find(Event::class, $campaignConditionId);
         \assert($campaignTagCondition instanceof Event);
-        Assert::assertSame([$mainTagName], $campaignTagCondition->getProperties()['tags']);
-        Assert::assertSame([$mainTagId], $campaignTagCondition->getProperties()['properties']['tags']);
+        Assert::assertSame([$primaryTagName], $campaignTagCondition->getProperties()['tags']);
+        Assert::assertSame([$primaryTagId], $campaignTagCondition->getProperties()['properties']['tags']);
 
         $segment = $this->em->find(LeadList::class, $segmentId);
         \assert($segment instanceof LeadList);
-        Assert::assertSame([$mainTagId], $segment->getFilters()[0]['properties']['filter']);
+        Assert::assertSame([$primaryTagId], $segment->getFilters()[0]['properties']['filter']);
 
         $formAction = $this->em->find(Action::class, $formActionId);
         \assert($formAction instanceof Action);
-        Assert::assertSame([$mainTagName], $formAction->getProperties()['add_tags']);
+        Assert::assertSame([$primaryTagName], $formAction->getProperties()['add_tags']);
 
         $pointTriggerEvent = $this->em->find(TriggerEvent::class, $pointTriggerEventId);
         \assert($pointTriggerEvent instanceof TriggerEvent);
-        Assert::assertSame([$mainTagName], $pointTriggerEvent->getProperties()['add_tags']);
+        Assert::assertSame([$primaryTagName], $pointTriggerEvent->getProperties()['add_tags']);
 
         $report = $this->em->find(Report::class, $reportId);
         \assert($report instanceof Report);
-        Assert::assertSame([$mainTagId], $report->getFilters()[0]['value']);
-        Assert::assertNull($this->tagRepository->find($secTagId));
+        Assert::assertSame([$primaryTagId], $report->getFilters()[0]['value']);
+        Assert::assertNull($this->tagRepository->find($secondaryTagId));
     }
 
-    private function createCampaignEventWithChangeTags(Tag $mainTag, Tag $secTag): Event
+    private function createCampaignEventWithChangeTags(Tag $primaryTag, Tag $secondaryTag): Event
     {
         $campaign = $this->createCampaign('change tags campaign');
         $event    = new Event();
@@ -415,9 +435,9 @@ class TagControllerTest extends MauticMysqlTestCase
         $event->setType('lead.changetags');
         $event->setEventType('action');
         $event->setProperties([
-            'add_tags'   => [$mainTag->getTag(), $secTag->getTag()],
+            'add_tags'   => [$primaryTag->getTag(), $secondaryTag->getTag()],
             'properties' => [
-                'add_tags' => [$mainTag->getId(), $secTag->getId()],
+                'add_tags' => [$primaryTag->getId(), $secondaryTag->getId()],
             ],
         ]);
         $this->em->persist($event);
@@ -426,7 +446,7 @@ class TagControllerTest extends MauticMysqlTestCase
         return $event;
     }
 
-    private function createCampaignEventWithTagCondition(Tag $mainTag, Tag $secTag): Event
+    private function createCampaignEventWithTagCondition(Tag $primaryTag, Tag $secondaryTag): Event
     {
         $campaign = $this->createCampaign('tag condition campaign');
         $event    = new Event();
@@ -435,9 +455,9 @@ class TagControllerTest extends MauticMysqlTestCase
         $event->setType('lead.tags');
         $event->setEventType('condition');
         $event->setProperties([
-            'tags'       => [$mainTag->getTag(), $secTag->getTag()],
+            'tags'       => [$primaryTag->getTag(), $secondaryTag->getTag()],
             'properties' => [
-                'tags' => [$mainTag->getId(), $secTag->getId()],
+                'tags' => [$primaryTag->getId(), $secondaryTag->getId()],
             ],
         ]);
         $this->em->persist($event);
@@ -456,7 +476,7 @@ class TagControllerTest extends MauticMysqlTestCase
         return $campaign;
     }
 
-    private function createSegmentWithTagFilter(Tag $mainTag, Tag $secTag): LeadList
+    private function createSegmentWithTagFilter(Tag $primaryTag, Tag $secondaryTag): LeadList
     {
         $segment = new LeadList();
         $segment->setName('tag segment');
@@ -470,7 +490,7 @@ class TagControllerTest extends MauticMysqlTestCase
                 'type'       => 'tags',
                 'operator'   => 'in',
                 'properties' => [
-                    'filter' => [$mainTag->getId(), $secTag->getId()],
+                    'filter' => [$primaryTag->getId(), $secondaryTag->getId()],
                 ],
             ],
         ]);
@@ -480,7 +500,7 @@ class TagControllerTest extends MauticMysqlTestCase
         return $segment;
     }
 
-    private function createFormActionWithChangeTags(string $mainTagName, string $secTagName): Action
+    private function createFormActionWithChangeTags(string $primaryTagName, string $secondaryTagName): Action
     {
         $form = new Form();
         $form->setName('tag form');
@@ -493,7 +513,7 @@ class TagControllerTest extends MauticMysqlTestCase
         $action->setForm($form);
         $action->setType('lead.changetags');
         $action->setProperties([
-            'add_tags' => [$mainTagName, $secTagName],
+            'add_tags' => [$primaryTagName, $secondaryTagName],
         ]);
         $this->em->persist($action);
         $this->em->flush();
@@ -501,7 +521,7 @@ class TagControllerTest extends MauticMysqlTestCase
         return $action;
     }
 
-    private function createPointTriggerEventWithChangeTags(string $mainTagName, string $secTagName): TriggerEvent
+    private function createPointTriggerEventWithChangeTags(string $primaryTagName, string $secondaryTagName): TriggerEvent
     {
         $trigger = new Trigger();
         $trigger->setName('tag trigger');
@@ -513,7 +533,7 @@ class TagControllerTest extends MauticMysqlTestCase
         $event->setTrigger($trigger);
         $event->setType('lead.changetags');
         $event->setProperties([
-            'add_tags' => [$mainTagName, $secTagName],
+            'add_tags' => [$primaryTagName, $secondaryTagName],
         ]);
         $this->em->persist($event);
         $this->em->flush();
@@ -521,7 +541,7 @@ class TagControllerTest extends MauticMysqlTestCase
         return $event;
     }
 
-    private function createReportWithTagFilter(int $mainTagId, int $secTagId): Report
+    private function createReportWithTagFilter(int $primaryTagId, int $secondaryTagId): Report
     {
         $report = new Report();
         $report->setName('tag report');
@@ -533,7 +553,7 @@ class TagControllerTest extends MauticMysqlTestCase
                 'glue'      => 'and',
                 'dynamic'   => null,
                 'condition' => 'in',
-                'value'     => [$mainTagId, $secTagId],
+                'value'     => [$primaryTagId, $secondaryTagId],
             ],
         ]);
         $this->em->persist($report);
