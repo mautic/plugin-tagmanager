@@ -30,7 +30,7 @@ class BatchTagController extends AbstractFormController
         ], 'RETURN_ARRAY');
 
         if (!$permissions['tagManager:tagManager:view']) {
-            return $this->accessDenied();
+            $this->checkAccessDenied();
         }
 
         return $this->delegateView([
