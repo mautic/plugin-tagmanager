@@ -57,7 +57,7 @@ class TagController extends FormController
         ], 'RETURN_ARRAY');
 
         if (!$permissions[self::PERMISSION_VIEW]) {
-            $this->checkAccessDenied();
+            $this->throwAccessDenied();
         }
 
         $this->setListFilters();
@@ -154,7 +154,7 @@ class TagController extends FormController
     public function newAction(Request $request, TagDependencies $tagDependencies)
     {
         if (!$this->security->isGranted(self::PERMISSION_CREATE)) {
-            $this->checkAccessDenied();
+            $this->throwAccessDenied();
         }
 
         // retrieve the entity
@@ -253,39 +253,33 @@ class TagController extends FormController
     public function editAction(Request $request, TagDependencies $tagDependencies, int $objectId, bool $ignorePost = false): Response
     {
         if (!$this->security->isGranted(self::PERMISSION_EDIT)) {
-            $this->checkAccessDenied();
-        } else {
-            $postActionVars = $this->getPostActionVars($request, $objectId);
-
-            try {
-                $tag = $this->getTag($objectId);
-
-                $response = $this->createTagModifyResponse(
-                    $request,
-                    $tag,
-                    $tagDependencies,
-                    $postActionVars,
-                    $this->generateUrl('mautic_tagmanager_action', ['objectAction' => 'edit', 'objectId' => $objectId]),
-                    $ignorePost
-                );
-            } catch (AccessDeniedException) {
-                $this->checkAccessDenied();
-            } catch (EntityNotFoundException) {
-                $response = $this->postActionRedirect(
-                    array_merge($postActionVars, [
-                        'flashes' => [
-                            [
-                                'type'    => 'error',
-                                'msg'     => 'mautic.tagmanager.tag.error.notfound',
-                                'msgVars' => ['%id%' => $objectId],
-                            ],
-                        ],
-                    ])
-                );
-            }
+            $this->throwAccessDenied();
         }
 
-        return $response;
+        $postActionVars = $this->getPostActionVars($request, $objectId);
+
+        try {
+            return $this->createTagModifyResponse(
+                $request,
+                $this->getTag($objectId),
+                $tagDependencies,
+                $postActionVars,
+                $this->generateUrl('mautic_tagmanager_action', ['objectAction' => 'edit', 'objectId' => $objectId]),
+                $ignorePost
+            );
+        } catch (EntityNotFoundException) {
+            return $this->postActionRedirect(
+                array_merge($postActionVars, [
+                    'flashes' => [
+                        [
+                            'type'    => 'error',
+                            'msg'     => 'mautic.tagmanager.tag.error.notfound',
+                            'msgVars' => ['%id%' => $objectId],
+                        ],
+                    ],
+                ])
+            );
+        }
     }
 
     /**
@@ -487,7 +481,7 @@ class TagController extends FormController
                 ],
             ]);
         } elseif (!$this->security->isGranted(self::PERMISSION_VIEW)) {
-            $this->checkAccessDenied();
+            $this->throwAccessDenied();
         }
 
         return $this->delegateView([
@@ -520,7 +514,7 @@ class TagController extends FormController
         );
 
         if (!$permissions[self::PERMISSION_VIEW]) {
-            $this->checkAccessDenied();
+            $this->throwAccessDenied();
         } else {
             $secondaryTag = $this->leadTagModel->getEntity($objectId);
 
@@ -606,7 +600,7 @@ class TagController extends FormController
             if (null === $primaryTag) {
                 $response = $this->handlePrimaryTagNotFound($postActionVars);
             } elseif (!$permissions[self::PERMISSION_EDIT] || !$permissions[self::PERMISSION_DELETE]) {
-                $this->checkAccessDenied();
+                $this->throwAccessDenied();
             } else {
                 $response = $this->performTagMerge($primaryTag, $secondaryTag);
             }
@@ -741,7 +735,7 @@ class TagController extends FormController
                     'msgVars' => ['%id%' => $objectId],
                 ];
             } elseif (!$this->security->isGranted(self::PERMISSION_DELETE)) {
-                $this->checkAccessDenied();
+                $this->throwAccessDenied();
             }
 
             $model->deleteEntity($tag);
